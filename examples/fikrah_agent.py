@@ -23,8 +23,6 @@ from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 
 from rich.console import Console
-from rich.panel import Panel
-from rich.markdown import Markdown
 from rich.theme import Theme
 from lxml import etree
 import qrcode
@@ -41,12 +39,13 @@ from zatca_mcp.utils.validation import validate_invoice_xml, validate_vat_number
 # ═══════════════════════════════════════════════════
 
 FIKRA_THEME = Theme({
-    "fikra.brand": "bold green",
-    "fikra.dim": "dim",
-    "fikra.tool": "dim cyan",
+    "fikra.brand": "bold #c8e64a",
+    "fikra.accent": "#c8e64a",
+    "fikra.dim": "#6b7c6e",
+    "fikra.tool": "dim",
     "fikra.error": "bold red",
     "fikra.warn": "bold yellow",
-    "fikra.success": "bold green",
+    "fikra.success": "bold #c8e64a",
 })
 
 console = Console(theme=FIKRA_THEME)
@@ -358,7 +357,7 @@ HTML_TEMPLATE = """\
     overflow: hidden;
   }}
   .header {{
-    background: linear-gradient(135deg, #0d9f4f 0%, #0a7a3c 100%);
+    background: linear-gradient(135deg, #2d3a2e 0%, #3a4a3d 100%);
     color: #fff;
     padding: 32px 40px;
     display: flex;
@@ -402,7 +401,7 @@ HTML_TEMPLATE = """\
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 1px;
-    color: #0d9f4f;
+    color: #2d3a2e;
     margin-bottom: 10px;
     font-weight: 600;
   }}
@@ -415,12 +414,12 @@ HTML_TEMPLATE = """\
     font-size: 14px;
   }}
   thead th {{
-    background: #f0fdf4;
-    color: #0d9f4f;
+    background: #c8e64a;
+    color: #2d3a2e;
     font-weight: 600;
     text-align: left;
     padding: 10px 12px;
-    border-bottom: 2px solid #0d9f4f;
+    border-bottom: 2px solid #c8e64a;
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -448,12 +447,12 @@ HTML_TEMPLATE = """\
     color: #555;
   }}
   .totals-table .row.grand {{
-    border-top: 2px solid #0d9f4f;
+    border-top: 2px solid #c8e64a;
     margin-top: 6px;
     padding-top: 10px;
     font-size: 18px;
     font-weight: 700;
-    color: #0d9f4f;
+    color: #2d3a2e;
   }}
   .footer {{
     border-top: 1px solid #eee;
@@ -470,9 +469,9 @@ HTML_TEMPLATE = """\
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    background: #f0fdf4;
-    border: 1px solid #bbf7d0;
-    color: #0d9f4f;
+    background: #c8e64a;
+    border: 1px solid #b5d043;
+    color: #2d3a2e;
     padding: 6px 14px;
     border-radius: 6px;
     font-size: 12px;
@@ -716,14 +715,8 @@ def execute_tool(name: str, args: dict) -> str:
             try:
                 html = generate_html_invoice(xml)
                 filepath = save_and_open_invoice(html, args["invoice_number"])
-                console.print(Panel(
-                    f"[fikra.success]Invoice saved & opened in browser[/]\n"
-                    f"[fikra.dim]{filepath}[/]",
-                    border_style="green",
-                    title="HTML Invoice",
-                    title_align="left",
-                    padding=(0, 1),
-                ))
+                console.print(f"\n  [fikra.success]✓ Invoice saved & opened in browser[/]")
+                console.print(f"  [fikra.dim]{filepath}[/]")
             except Exception as e:
                 console.print(f"  [fikra.warn]Warning: HTML invoice generation failed: {e}[/]")
 
@@ -801,39 +794,82 @@ Today's date is: """ + datetime.now(timezone.utc).strftime("%Y-%m-%d")
 # ═══════════════════════════════════════════════════
 
 
+BANNER = """\
+[#c8e64a]     ◇[/]
+[#b0e14d]    ◇◆◇[/]
+[#99dd50]     ◇       ███████╗██╗██╗  ██╗██████╗  █████╗ ██╗  ██╗[/]
+[#81d853]    ╱ ╲      ██╔════╝██║██║ ██╔╝██╔══██╗██╔══██╗██║  ██║[/]
+[#69d356]   ╱   ╲     █████╗  ██║█████╔╝ ██████╔╝███████║███████║[/]
+[#52cf58]   ╰───╯     ██╔══╝  ██║██╔═██╗ ██╔══██╗██╔══██║██╔══██║[/]
+[#3aca5b]              ██║     ██║██║  ██╗██║  ██║██║  ██║██║  ██║[/]
+[#22c55e]              ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝[/]
+"""
+
+MODEL_NAME = os.environ.get("FIKRAH_MODEL", "claude-sonnet-4-20250514")
+
+
 def print_banner():
     """Display the Fikra CLI welcome banner."""
-    console.print(Panel(
-        "[fikra.dim]ZATCA Invoice Agent powered by Claude[/]\n"
-        "\n"
-        "[fikra.dim]Tell me about a deal and I'll generate a\n"
-        "ZATCA-compliant e-invoice for you.\n"
-        "\n"
-        "Examples:[/]\n"
-        '  "I just closed a deal with Al-Rajhi Corp for 5000 SAR"\n'
-        '  "Generate a simplified invoice for a walk-in customer"\n'
-        '  "I sold 10 laptops at 3000 SAR each to TechCo"\n'
-        "\n"
-        "[fikra.dim]Type /quit or /exit to leave.[/]",
-        title="[fikra.brand]Fikra CLI v0.1.0[/]",
-        border_style="green",
-        padding=(1, 2),
-    ))
+    console.print(BANNER)
+    console.print(
+        f"  [fikra.dim]Model: {MODEL_NAME}  |  Tools: {len(TOOLS)} ZATCA tools"
+        f"  |  cwd: {os.getcwd()}[/]"
+    )
+    console.print()
+    console.print(
+        '  [fikra.dim]Tips: "I sold 10 laptops at 3000 SAR each to TechCo" to get started[/]'
+    )
+    console.print(
+        "  [fikra.dim]      /help for commands, /quit to exit[/]"
+    )
+
+
+def _stream_response(client, messages):
+    """Stream a Claude response, printing text in real-time. Returns the final Message or None on error."""
+    try:
+        with client.messages.stream(
+            model=MODEL_NAME,
+            max_tokens=4096,
+            system=SYSTEM_PROMPT,
+            tools=TOOLS,
+            messages=messages,
+        ) as stream:
+            console.print()
+            streamed_any_text = False
+            for chunk in stream.text_stream:
+                console.file.write(chunk)
+                console.file.flush()
+                streamed_any_text = True
+            if streamed_any_text:
+                console.file.write("\n")
+                console.file.flush()
+
+            response = stream.get_final_message()
+
+        # Token usage
+        if response.usage:
+            inp = f"{response.usage.input_tokens:,}"
+            out = f"{response.usage.output_tokens:,}"
+            console.print(f"\n  [fikra.dim]↳ {inp} input · {out} output tokens[/]")
+
+        return response
+
+    except KeyboardInterrupt:
+        console.print("\n[fikra.dim]Cancelled.[/]")
+        return None
+    except anthropic.APIError as e:
+        console.print(f"\n[fikra.error]API Error: {e}[/]")
+        return None
 
 
 def main():
     # Check for API key
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        console.print(Panel(
-            "[fikra.warn]ANTHROPIC_API_KEY not set![/]\n\n"
-            "Export it first:\n"
-            "  [bold]export ANTHROPIC_API_KEY='sk-ant-...'[/]",
-            border_style="yellow",
-            title="Missing API Key",
-            title_align="left",
-            padding=(1, 2),
-        ))
+        console.print()
+        console.print("  [fikra.error]✗ ANTHROPIC_API_KEY not set[/]")
+        console.print("    [dim]export ANTHROPIC_API_KEY='sk-ant-...'[/]")
+        console.print()
         sys.exit(1)
 
     client = anthropic.Anthropic(api_key=api_key)
@@ -844,40 +880,50 @@ def main():
     while True:
         # Get user input
         try:
-            user_input = console.input("\n[bold green]fikra>[/] ")
+            user_input = console.input("\n[#c8e64a]❯[/] ")
         except (KeyboardInterrupt, EOFError):
             console.print("\n[fikra.dim]Ma'a salama![/]")
             break
 
-        if user_input.strip().lower() in ("quit", "exit", "q", "/quit", "/exit"):
+        stripped = user_input.strip().lower()
+
+        if stripped in ("quit", "exit", "q", "/quit", "/exit"):
             console.print("[fikra.dim]Ma'a salama![/]")
             break
+
+        if stripped == "/help":
+            console.print()
+            console.print("  [fikra.brand]Fikra CLI — Commands[/]")
+            console.print("  [fikra.dim]─────────────────────────────[/]")
+            console.print("  [bold]/help[/]   Show this help message")
+            console.print("  [bold]/clear[/]  Clear conversation and screen")
+            console.print("  [bold]/quit[/]   Exit Fikra CLI")
+            console.print()
+            console.print("  [fikra.dim]Examples:[/]")
+            console.print('  [dim]"I sold 10 laptops at 3000 SAR each to TechCo"[/]')
+            console.print('  [dim]"Generate a simplified invoice for a walk-in customer"[/]')
+            console.print('  [dim]"Decode this QR code: AQ..."[/]')
+            continue
+
+        if stripped == "/clear":
+            messages.clear()
+            os.system("clear" if os.name != "nt" else "cls")
+            print_banner()
+            console.print("\n  [fikra.dim]Conversation cleared.[/]")
+            continue
 
         if not user_input.strip():
             continue
 
         messages.append({"role": "user", "content": user_input})
 
-        # Call Claude with tool use
-        try:
-            with console.status("[fikra.dim]Thinking...[/]", spinner="dots", spinner_style="green"):
-                response = client.messages.create(
-                    model=os.environ.get("FIKRAH_MODEL", "claude-sonnet-4-20250514"),
-                    max_tokens=4096,
-                    system=SYSTEM_PROMPT,
-                    tools=TOOLS,
-                    messages=messages,
-                )
-        except KeyboardInterrupt:
-            console.print("[fikra.dim]Cancelled.[/]")
-            messages.pop()
-            continue
-        except anthropic.APIError as e:
-            console.print(f"[fikra.error]API Error: {e}[/]")
+        # Stream response from Claude
+        response = _stream_response(client, messages)
+        if response is None:
             messages.pop()
             continue
 
-        # Process response — handle tool use loop (capped at 10 iterations)
+        # Handle tool use loop (capped at 10 iterations)
         tool_iterations = 0
         while response.stop_reason == "tool_use" and tool_iterations < 10:
             tool_iterations += 1
@@ -888,7 +934,7 @@ def main():
             tool_results = []
             for block in assistant_content:
                 if block.type == "tool_use":
-                    console.print(f"  [fikra.tool]tool: {block.name}[/]")
+                    console.print(f"  [dim]⏺ {block.name}[/]")
                     result = execute_tool(block.name, block.input)
                     tool_results.append({
                         "type": "tool_result",
@@ -898,31 +944,16 @@ def main():
 
             messages.append({"role": "user", "content": tool_results})
 
-            # Continue the conversation
-            try:
-                with console.status("[fikra.dim]Thinking...[/]", spinner="dots", spinner_style="green"):
-                    response = client.messages.create(
-                        model=os.environ.get("FIKRAH_MODEL", "claude-sonnet-4-20250514"),
-                        max_tokens=4096,
-                        system=SYSTEM_PROMPT,
-                        tools=TOOLS,
-                        messages=messages,
-                    )
-            except KeyboardInterrupt:
-                console.print("[fikra.dim]Cancelled.[/]")
-                break
-            except anthropic.APIError as e:
-                console.print(f"[fikra.error]API Error: {e}[/]")
+            # Continue streaming
+            response = _stream_response(client, messages)
+            if response is None:
                 break
 
-        # Print final text response as rendered Markdown
-        final_content = response.content
-        messages.append({"role": "assistant", "content": final_content})
+        if response is None:
+            continue
 
-        for block in final_content:
-            if hasattr(block, "text"):
-                console.print()
-                console.print(Markdown(block.text))
+        # Record final assistant message
+        messages.append({"role": "assistant", "content": response.content})
 
 
 if __name__ == "__main__":
