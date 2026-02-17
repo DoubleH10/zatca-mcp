@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZATCA MCP — System Design</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #0f172a; color: #e2e8f0; line-height: 1.7; }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+
+  /* Navigation */
+  nav { position: sticky; top: 0; background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(10px); border-bottom: 1px solid #1e293b; z-index: 100; padding: 1rem 2rem; }
+  nav ul { display: flex; gap: 1.5rem; list-style: none; flex-wrap: wrap; justify-content: center; }
+  nav a { color: #94a3b8; text-decoration: none; font-size: 0.85rem; font-weight: 500; transition: color 0.2s; }
+  nav a:hover { color: #38bdf8; }
+
+  /* Hero */
+  .hero { text-align: center; padding: 4rem 0 3rem; }
+  .hero h1 { font-size: 3rem; font-weight: 800; background: linear-gradient(135deg, #38bdf8, #c8e64a); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0.5rem; }
+  .hero p { color: #94a3b8; font-size: 1.2rem; }
+  .hero .badge { display: inline-block; background: #1e293b; border: 1px solid #334155; border-radius: 999px; padding: 0.25rem 1rem; font-size: 0.8rem; color: #c8e64a; margin-top: 1rem; }
+
+  /* Sections */
+  section { margin: 3rem 0; }
+  h2 { font-size: 1.8rem; font-weight: 700; color: #f1f5f9; margin-bottom: 1.5rem; padding-bottom: 0.5rem; border-bottom: 2px solid #1e293b; }
+  h3 { font-size: 1.3rem; font-weight: 600; color: #cbd5e1; margin: 1.5rem 0 0.75rem; }
+  h4 { font-size: 1.05rem; font-weight: 600; color: #94a3b8; margin: 1rem 0 0.5rem; }
+  p { margin-bottom: 1rem; color: #94a3b8; }
+
+  /* Diagrams */
+  .diagram-box { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 2rem; margin: 1.5rem 0; overflow-x: auto; }
+  .diagram-box pre { color: #38bdf8; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.8rem; line-height: 1.6; white-space: pre; }
+
+  /* Code blocks */
+  .code-block { background: #1e293b; border: 1px solid #334155; border-radius: 12px; margin: 1rem 0; overflow: hidden; }
+  .code-header { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.25rem; background: #0f172a; border-bottom: 1px solid #334155; }
+  .code-header span { font-size: 0.8rem; color: #64748b; font-weight: 600; }
+  .code-header .lang { color: #38bdf8; background: rgba(56,189,248,0.1); padding: 0.15rem 0.5rem; border-radius: 4px; }
+  .code-block pre { padding: 1.25rem; overflow-x: auto; }
+  .code-block code { color: #e2e8f0; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.82rem; line-height: 1.7; }
+
+  /* Syntax colors */
+  .kw { color: #c084fc; }
+  .fn { color: #38bdf8; }
+  .st { color: #34d399; }
+  .cm { color: #64748b; }
+  .dc { color: #fb923c; }
+  .tp { color: #fbbf24; }
+  .nb { color: #f472b6; }
+
+  /* Cards */
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem; margin: 1.5rem 0; }
+  .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem; transition: border-color 0.2s; }
+  .card:hover { border-color: #38bdf8; }
+  .card .icon { font-size: 2rem; margin-bottom: 0.75rem; }
+  .card h4 { color: #f1f5f9; margin-bottom: 0.5rem; }
+  .card p { font-size: 0.9rem; margin: 0; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+  th { background: #1e293b; color: #38bdf8; text-align: left; padding: 0.75rem 1rem; font-size: 0.85rem; font-weight: 600; border-bottom: 2px solid #334155; }
+  td { padding: 0.75rem 1rem; border-bottom: 1px solid #1e293b; font-size: 0.9rem; }
+  tr:hover td { background: rgba(56,189,248,0.03); }
+
+  /* Flow diagram */
+  .flow { display: flex; align-items: center; gap: 0; flex-wrap: wrap; justify-content: center; margin: 1.5rem 0; }
+  .flow-step { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 0.75rem 1.25rem; text-align: center; min-width: 140px; }
+  .flow-step .label { font-size: 0.75rem; color: #64748b; }
+  .flow-step .value { font-size: 0.9rem; color: #f1f5f9; font-weight: 600; }
+  .flow-arrow { color: #38bdf8; font-size: 1.5rem; padding: 0 0.25rem; }
+
+  /* Callout */
+  .callout { background: rgba(56,189,248,0.05); border-left: 3px solid #38bdf8; border-radius: 0 8px 8px 0; padding: 1rem 1.25rem; margin: 1rem 0; }
+  .callout.warn { border-left-color: #fbbf24; background: rgba(251,191,36,0.05); }
+  .callout.success { border-left-color: #c8e64a; background: rgba(200,230,74,0.05); }
+  .callout p { margin: 0; }
+  .callout strong { color: #f1f5f9; }
+
+  /* Timeline */
+  .timeline { position: relative; padding-left: 2rem; margin: 1.5rem 0; }
+  .timeline::before { content: ''; position: absolute; left: 0.5rem; top: 0; bottom: 0; width: 2px; background: #334155; }
+  .timeline-item { position: relative; margin-bottom: 2rem; }
+  .timeline-item::before { content: ''; position: absolute; left: -1.65rem; top: 0.35rem; width: 12px; height: 12px; border-radius: 50%; background: #38bdf8; border: 2px solid #0f172a; }
+  .timeline-item.done::before { background: #c8e64a; }
+  .timeline-item.active::before { background: #fb923c; }
+  .timeline-item h4 { color: #f1f5f9; }
+  .timeline-item p { font-size: 0.9rem; }
+
+  /* Phase badge */
+  .phase-badge { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; margin-right: 0.5rem; }
+  .phase-badge.plan { background: rgba(56,189,248,0.15); color: #38bdf8; }
+  .phase-badge.build { background: rgba(200,230,74,0.15); color: #c8e64a; }
+  .phase-badge.polish { background: rgba(251,191,36,0.15); color: #fbbf24; }
+
+  /* File tree */
+  .file-tree { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; line-height: 2; }
+  .file-tree .dir { color: #38bdf8; font-weight: 600; }
+  .file-tree .file { color: #94a3b8; }
+  .file-tree .desc { color: #64748b; font-style: italic; }
+  .file-tree .new { color: #c8e64a; font-weight: 600; }
+  .file-tree .removed { color: #f87171; text-decoration: line-through; }
+
+  /* Stat cards */
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+  .stat-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.25rem; text-align: center; }
+  .stat-card .number { font-size: 2rem; font-weight: 800; color: #c8e64a; }
+  .stat-card .label { font-size: 0.8rem; color: #64748b; margin-top: 0.25rem; }
+
+  /* Comparison columns */
+  .vs { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin: 1.5rem 0; }
+  .vs > div { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem; }
+  .vs .col-header { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid #334155; }
+  .vs .col-header.old { color: #f87171; }
+  .vs .col-header.new { color: #c8e64a; }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .hero h1 { font-size: 2rem; }
+    .container { padding: 1rem; }
+    nav ul { gap: 0.75rem; }
+    .vs { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <ul>
+    <li><a href="#summary">Summary</a></li>
+    <li><a href="#evolution">Evolution</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#modules">Modules</a></li>
+    <li><a href="#decisions">Decisions</a></li>
+    <li><a href="#improvements">Improvements</a></li>
+    <li><a href="#data-flow">Data Flow</a></li>
+    <li><a href="#testing">Testing</a></li>
+    <li><a href="#compliance">Compliance</a></li>
+    <li><a href="#roadmap">Roadmap</a></li>
+  </ul>
+</nav>
+
+<div class="container">
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 1. HERO -->
+<!-- ═══════════════════════════════════════════════════ -->
+
+<div class="hero">
+  <h1>ZATCA MCP &mdash; System Design</h1>
+  <p>From Idea to Implementation</p>
+  <div class="badge">Fikrah &nbsp;|&nbsp; Phase 1 + 2 Complete &nbsp;|&nbsp; 101 Tests</div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 2. EXECUTIVE SUMMARY -->
+<!-- ═══════════════════════════════════════════════════ -->
+
+<section id="summary">
+<h2>1. Executive Summary</h2>
+
+<p>ZATCA MCP is a Model Context Protocol server that enables AI agents&mdash;Claude Desktop, Claude Code, or any MCP client&mdash;to generate, sign, validate, and submit Saudi Arabia ZATCA-compliant electronic invoices through natural language. It turns a complex regulatory domain (UBL 2.1 XML, TLV QR codes, XAdES-BES signing, 16 business rules, ZATCA Fatoora API) into eight simple tool calls that any LLM can invoke.</p>
+
+<p>The project ships with a standalone CLI agent (<strong>Fikra</strong>) that demonstrates the full pipeline: conversational invoice creation with streaming responses, HTML invoice rendering with embedded QR code images, and automatic browser preview. Phase 2 adds digital signing, certificate management, credit/debit notes, and ZATCA API integration.</p>
+
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="number">8</div>
+    <div class="label">MCP Tools</div>
+  </div>
+  <div class="stat-card">
+    <div class="number">16</div>
+    <div class="label">Validation Rules</div>
+  </div>
+  <div class="stat-card">
+    <div class="number">101</div>
+    <div class="label">Tests</div>
+  </div>
+  <div class="stat-card">
+    <div class="number">6</div>
+    <div class="label">Test Modules</div>
+  </div>
+</div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 3. EVOLUTION -->
+<!-- ═══════════════════════════════════════════════════ -->
+
+<section id="evolution">
+<h2>2. The Evolution &mdash; From Idea to Implementation</h2>
+
+<p>This project went through three distinct phases. Each phase changed the design&mdash;sometimes radically&mdash;as real implementation constraints surfaced.</p>
+
+<div class="timeline">
+
+  <!-- Phase 1 -->
+  <div class="timeline-item done">
+    <h4><span class="phase-badge plan">Phase 1</span> The Original Design (Pre-Build)</h4>
+    <p>The design doc (<code>zatca-mcp-system-design.html</code>) laid out a textbook architecture with Pydantic models for type safety, a <code>tools/</code> directory with one file per tool, <code>models/</code> with <code>SellerInfo</code>, <code>BuyerInfo</code>, <code>LineItem</code>, and <code>InvoiceRequest</code> schemas, httpx for ZATCA API integration, a basic example client (<code>basic_usage.py</code>), and a week-by-week delivery timeline.</p>
+  </div>
+
+  <!-- Phase 2 -->
+  <div class="timeline-item done">
+    <h4><span class="phase-badge build">Phase 2</span> The Initial Build (Commit 1)</h4>
+    <p>Implementation revealed that the planned architecture was over-engineered for 4 tools. <strong>Pydantic was dropped</strong>&mdash;MCP auto-generates JSON schemas from Python type hints; manual validation is simpler and has zero extra dependencies. <strong>httpx was deferred</strong>&mdash;ZATCA API integration is a Phase 2 concern. The <strong>tools/ directory was flattened</strong> into a single <code>server.py</code>&mdash;4 tools don't warrant 4 files. A dedicated <strong>validation.py engine</strong> emerged (not in the original plan). The <strong>Fikra CLI agent</strong> (961 lines) was built as a real-world demo&mdash;far beyond the planned <code>basic_usage.py</code>. An <strong>HTML invoice pipeline</strong> with embedded QR code images was added. <strong>49 tests</strong> shipped from day one.</p>
+  </div>
+
+  <!-- Phase 3 -->
+  <div class="timeline-item done">
+    <h4><span class="phase-badge polish">Phase 3</span> The Polish (Commit 2 &mdash; Fikra CLI v2)</h4>
+    <p>A Claude Code-style UX overhaul:</p>
+  </div>
+
+  <!-- Phase 4 -->
+  <div class="timeline-item done">
+    <h4><span class="phase-badge build">Phase 4</span> Phase 2 Implementation (Full Functionality)</h4>
+    <p>Six sub-phases delivered in sequence: <strong>(A)</strong> Digital signing foundation with ECDSA secp256k1, XAdES-BES signature injection, CSR generation. <strong>(B)</strong> Credit/debit note support (types 381/383) with BillingReference and InstructionNote. <strong>(C)</strong> Signing MCP tools (<code>generate_csr</code>, <code>sign_invoice</code>). <strong>(D)</strong> ZATCA API client with Pydantic v2 models and async httpx. <strong>(E)</strong> API MCP tools (<code>submit_invoice</code>, <code>check_compliance</code>). <strong>(F)</strong> Fikra CLI update with 8 tools and Phase 2 availability banner. Tests grew from 49 to <strong>101</strong>, validation rules from 14 to <strong>16</strong>, tools from 4 to <strong>8</strong>. All Phase 2 tools use <code>try/except ImportError</code> for graceful degradation.</p>
+  </div>
+
+</div>
+
+<table>
+  <tr><th>Before</th><th>After</th><th>Why</th></tr>
+  <tr>
+    <td>Panel boxes</td>
+    <td>Clean inline output</td>
+    <td>Less visual clutter</td>
+  </tr>
+  <tr>
+    <td><code>fikra&gt;</code> prompt</td>
+    <td style="color: #c8e64a;"><code>&#10095;</code> with #c8e64a accent</td>
+    <td>Matches Claude Code UX</td>
+  </tr>
+  <tr>
+    <td><code>tool: name</code></td>
+    <td><code>&#9210; name</code> indicators</td>
+    <td>Cleaner tool display</td>
+  </tr>
+  <tr>
+    <td>Blocking API calls</td>
+    <td>Streaming responses</td>
+    <td>Real-time feel</td>
+  </tr>
+  <tr>
+    <td>No token info</td>
+    <td><code>&#8627; input &middot; output tokens</code></td>
+    <td>Transparency</td>
+  </tr>
+  <tr>
+    <td>No commands</td>
+    <td><code>/help</code>, <code>/clear</code> slash commands</td>
+    <td>Familiar UX pattern</td>
+  </tr>
+  <tr>
+    <td>Green generic theme</td>
+    <td>Gradient <code>#c8e64a</code> brand theme</td>
+    <td>Cohesive identity</td>
+  </tr>
+  <tr>
+    <td>Green invoice CSS</td>
+    <td>Dark sage + lime rebrand</td>
+    <td>Professional polish</td>
+  </tr>
+</table>
+
+<h3>Planned vs Built File Structure</h3>
+
+<div class="vs">
+  <div>
+    <div class="col-header old">Original Plan</div>
+    <pre class="file-tree">
+<span class="dir">zatca-mcp/</span>
+├── <span class="dir">src/zatca_mcp/</span>
+│   ├── <span class="file">server.py</span>
+│   ├── <span class="dir removed">tools/</span>
+│   │   ├── <span class="removed">qr_code.py</span>
+│   │   ├── <span class="removed">invoice.py</span>
+│   │   └── <span class="removed">validation.py</span>
+│   ├── <span class="dir removed">models/</span>
+│   │   ├── <span class="removed">invoice.py</span>
+│   │   └── <span class="removed">seller_buyer.py</span>
+│   └── <span class="dir">utils/</span>
+│       ├── <span class="file">tlv.py</span>
+│       └── <span class="file">xml_builder.py</span>
+├── <span class="dir">examples/</span>
+│   └── <span class="file">basic_usage.py</span>
+└── <span class="dir">tests/</span></pre>
+  </div>
+  <div>
+    <div class="col-header new">What Was Built (Phase 1 + 2)</div>
+    <pre class="file-tree">
+<span class="dir">zatca-mcp/</span>
+├── <span class="dir">src/zatca_mcp/</span>
+│   ├── <span class="file">server.py</span>          <span class="desc">8 tools</span>
+│   ├── <span class="dir">utils/</span>
+│   │   ├── <span class="file">tlv.py</span>        <span class="desc">TLV encoder/decoder</span>
+│   │   ├── <span class="file">xml_builder.py</span> <span class="desc">UBL 2.1 + credit/debit</span>
+│   │   ├── <span class="new">validation.py</span>  <span class="desc">16 rules (new)</span>
+│   │   └── <span class="new">signing.py</span>     <span class="desc">XAdES-BES (Phase 2)</span>
+│   └── <span class="dir new">api/</span>
+│       ├── <span class="new">client.py</span>      <span class="desc">ZATCA Fatoora API (Phase 2)</span>
+│       └── <span class="new">models.py</span>      <span class="desc">Pydantic v2 models (Phase 2)</span>
+├── <span class="dir">examples/</span>
+│   └── <span class="new">fikrah_agent.py</span>   <span class="desc">8 tools + Phase 2 banner</span>
+├── <span class="dir">tests/</span>                 <span class="desc">100 tests across 6 files</span>
+├── <span class="dir">.github/workflows/</span>
+│   └── <span class="new">test.yml</span>          <span class="desc">lint + test + Phase 2 CI</span>
+└── <span class="new">SYSTEM_DESIGN.html</span></pre>
+  </div>
+</div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 4. ARCHITECTURE -->
+<!-- ═══════════════════════════════════════════════════ -->
+
+<section id="architecture">
+<h2>3. Architecture Overview</h2>
+
+<div class="diagram-box">
+<pre>
+  ┌─────────────────────┐      MCP Protocol        ┌─────────────────────────────────────────┐
+  │   Claude Desktop    │◄─────(JSON-RPC 2.0)──────►│                                         │
+  │   (MCP Client)      │      over stdio           │       ZATCA MCP Server                  │
+  └─────────────────────┘                           │       server.py  (8 tools)              │
+                                                    │                                         │
+  ┌─────────────────────┐      MCP Protocol        │  ┌──────────┐  ┌───────────────┐        │
+  │   Claude Code       │◄─────(JSON-RPC 2.0)──────►│  │ TLV      │  │ XML Builder   │        │
+  │   (MCP Client)      │      over stdio           │  │ Encoder  │  │ (UBL 2.1)     │        │
+  └─────────────────────┘                           │  └──────────┘  └───────────────┘        │
+                                                    │                                         │
+  ┌─────────────────────┐      Direct Python       │  ┌───────────────────────────────┐      │
+  │   Fikra CLI         │◄─────import──────────────►│  │ Validation Engine             │      │
+  │   + HTML Pipeline   │      (no MCP overhead)    │  │ 16 Business Rules (BR-01..16) │      │
+  └─────────────────────┘                           │  └───────────────────────────────┘      │
+                                                    │                                         │
+                                                    │  ┌──────────────┐  ┌─────────────────┐  │
+                                                    │  │ Signing      │  │ ZATCA API Client│  │
+                                                    │  │ Engine       │  │ (httpx async)   │  │
+                                                    │  │ (XAdES-BES)  │  │ sandbox + prod  │  │
+                                                    │  └──────────────┘  └─────────────────┘  │
+                                                    │     [phase2]           [phase2]          │
+                                                    └─────────────────────────────────────────┘
+</pre>
+</div>
+
+<h3>Data Flow</h3>
+
+<div class="flow">
+  <div class="flow-step"><div class="label">User</div><div class="value">Natural language</div></div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step"><div class="label">Claude</div><div class="value">LLM reasoning</div></div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step"><div class="label">MCP</div><div class="value">Tool call</div></div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step"><div class="label">Utils</div><div class="value">TLV / XML / Validate</div></div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step"><div class="label">Result</div><div class="value">JSON / XML</div></div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step"><div class="label">Claude</div><div class="value">Human summary</div></div>
+</div>
+
+<div class="callout">
+  <p><strong>Three client types, one server.</strong> Claude Desktop and Claude Code connect via MCP protocol (JSON-RPC 2.0 over stdio). Fikra CLI imports the utils directly&mdash;bypassing MCP overhead&mdash;and adds an HTML invoice pipeline with QR code image generation as a side-effect.</p>
+</div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 5. CORE MODULES -->
+<!-- ═══════════════════════════════════════════════════ -->
+
+<section id="modules">
+<h2>4. Core Modules Deep Dive</h2>
+
+<!-- 5a. MCP Server -->
+<h3>4a. MCP Server &mdash; <code>server.py</code> (8 tools)</h3>
+
+<p>The server uses FastMCP to register 8 tools with auto-generated JSON schemas from Python type hints and docstrings. Phase 1 tools (generate, validate, QR, decode) work with zero extra dependencies. Phase 2 tools (CSR, sign, submit, compliance) use <code>try/except ImportError</code> to gracefully degrade when <code>cryptography</code> or <code>httpx</code> aren't installed. Errors are returned as JSON objects (not exceptions) so the LLM gets a structured, actionable error message.</p>
+
+<div class="code-block">
+<div class="code-header"><span>Tool registration pattern (server.py)</span><span class="lang">Python</span></div>
+<pre><code><span class="kw">from</span> mcp.server.fastmcp <span class="kw">import</span> FastMCP
+
+mcp = FastMCP(<span class="st">"zatca-mcp"</span>, version=<span class="st">"0.1.0"</span>)
+
+<span class="dc">@mcp.tool()</span>
+<span class="kw">async def</span> <span class="fn">generate_qr_code</span>(
+    seller_name: <span class="tp">str</span>,
+    vat_number: <span class="tp">str</span>,
+    timestamp: <span class="tp">str</span>,
+    total_amount: <span class="tp">str</span>,
+    vat_amount: <span class="tp">str</span>,
+) -> <span class="tp">str</span>:
+    <span class="st">"""Generate a ZATCA-compliant TLV-encoded QR code."""</span>
+    vat_errors = validate_vat_number(vat_number)
+    <span class="kw">if</span> vat_errors:
+        <span class="kw">return</span> json.dumps({<span class="st">"error"</span>: <span class="st">"Invalid VAT"</span>, <span class="st">"details"</span>: vat_errors})
+    <span class="cm">...</span></code></pre>
+</div>
+
+<table>
+  <tr><th>Tool</th><th>Purpose</th><th>Phase</th><th>Key Params</th></tr>
+  <tr>
+    <td style="color: #c8e64a; font-weight: 600;">generate_invoice</td>
+    <td>Build a complete UBL 2.1 XML invoice with embedded QR</td>
+    <td>1</td>
+    <td>invoice_type, seller/buyer info, items, billing_reference</td>
+  </tr>
+  <tr>
+    <td style="color: #c8e64a; font-weight: 600;">generate_qr_code</td>
+    <td>TLV-encode invoice data into a Base64 QR payload</td>
+    <td>1</td>
+    <td>seller_name, vat_number, timestamp, total_amount, vat_amount</td>
+  </tr>
+  <tr>
+    <td style="color: #c8e64a; font-weight: 600;">validate_invoice</td>
+    <td>Check XML against 16 ZATCA business rules</td>
+    <td>1</td>
+    <td>invoice_xml</td>
+  </tr>
+  <tr>
+    <td style="color: #c8e64a; font-weight: 600;">decode_qr</td>
+    <td>Decode a TLV-encoded QR back to readable fields</td>
+    <td>1</td>
+    <td>qr_base64</td>
+  </tr>
+  <tr>
+    <td style="color: #38bdf8; font-weight: 600;">generate_csr</td>
+    <td>Generate ECDSA key pair + ZATCA-compliant CSR</td>
+    <td>2</td>
+    <td>common_name, organization, organizational_unit</td>
+  </tr>
+  <tr>
+    <td style="color: #38bdf8; font-weight: 600;">sign_invoice</td>
+    <td>Inject XAdES-BES digital signature into invoice XML</td>
+    <td>2</td>
+    <td>invoice_xml, certificate_pem, private_key_pem</td>
+  </tr>
+  <tr>
+    <td style="color: #38bdf8; font-weight: 600;">submit_invoice</td>
+    <td>Submit signed invoice to ZATCA API (report/clear)</td>
+    <td>2</td>
+    <td>signed_invoice_xml, invoice_hash, certificate, secret</td>
+  </tr>
+  <tr>
+    <td style="color: #38bdf8; font-weight: 600;">check_compliance</td>
+    <td>Check invoice compliance via ZATCA servers</td>
+    <td>2</td>
+    <td>signed_invoice_xml, invoice_hash, certificate, secret</td>
+  </tr>
+</table>
+
+<div class="callout success">
+  <p><strong>Error pattern:</strong> Every tool returns JSON&mdash;even on failure. <code>{"error": "...", "details": [...]}</code> gives the LLM actionable context to fix the input and retry, rather than an opaque stack trace.</p>
+</div>
+
+
+<!-- 5b. XML Builder -->
+<h3>4b. XML Builder &mdash; <code>xml_builder.py</code> (336 lines)</h3>
+
+<p>Builds UBL 2.1 invoices compliant with ZATCA's e-invoicing standard using <code>lxml.etree</code>. The builder follows a 10-step flow and handles multi-rate VAT through tax grouping.</p>
+
+<div class="code-block">
+<div class="code-header"><span>UBL 2.1 Namespace declarations</span><span class="lang">Python</span></div>
+<pre><code>NS = {
+    <span class="st">""</span>:     <span class="st">"urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"</span>,
+    <span class="st">"cac"</span>:  <span class="st">"urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"</span>,
+    <span class="st">"cbc"</span>:  <span class="st">"urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"</span>,
+    <span class="st">"ext"</span>:  <span class="st">"urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2"</span>,
+}</code></pre>
+</div>
+
+<p>Helper functions keep the builder DRY:</p>
+
+<table>
+  <tr><th>Helper</th><th>Purpose</th></tr>
+  <tr><td><code>_qn(ns, name)</code></td><td>Clark notation qualified name: <code>{namespace}localName</code></td></tr>
+  <tr><td><code>_round_decimal(val, places)</code></td><td>Financial rounding with <code>ROUND_HALF_UP</code></td></tr>
+  <tr><td><code>_add_text_element()</code></td><td>Create child element with text + optional attributes</td></tr>
+  <tr><td><code>_build_party()</code></td><td>Build AccountingSupplierParty or AccountingCustomerParty subtree</td></tr>
+</table>
+
+<h4>Invoice Generation Flow (10 steps)</h4>
+
+<div class="flow">
+  <div class="flow-step"><div class="label">1</div><div class="value">Root + NS</div></div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step"><div class="label">2</div><div class="value">Profile + ID</div></div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step"><div class="label">3</div><div class="value">Date/Type</div></div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step"><div class="label">4</div><div class="value">Currency</div></div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step"><div class="label">5</div><div class="value">QR Embed</div></div>
+</div>
+<div class="flow">
+  <div class="flow-step"><div class="label">6</div><div class="value">Seller</div></div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step"><div class="label">7</div><div class="value">Buyer</div></div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step"><div class="label">8</div><div class="value">Tax Total</div></div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step"><div class="label">9</div><div class="value">Monetary</div></div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step"><div class="label">10</div><div class="value">Line Items</div></div>
+</div>
+
+<div class="callout">
+  <p><strong>Multi-rate VAT:</strong> Items are grouped by <code>(vat_rate, vat_category)</code> tuple. Each group gets its own <code>TaxSubtotal</code> element under <code>TaxTotal</code>. This handles invoices mixing 15% standard, 0% zero-rated, and exempt items.</p>
+</div>
+
+
+<!-- 5c. TLV Encoder -->
+<h3>4c. TLV Encoder &mdash; <code>tlv.py</code> (130 lines)</h3>
+
+<p>Implements ZATCA's Tag-Length-Value encoding for QR codes. Each field is encoded as a single TLV segment: 1 byte tag + 1 byte length + N bytes UTF-8 value.</p>
+
+<div class="code-block">
+<div class="code-header"><span>TLV encoding of a single segment</span><span class="lang">Python</span></div>
+<pre><code><span class="dc">@dataclass</span>
+<span class="kw">class</span> <span class="tp">TLVTag</span>:
+    tag: <span class="tp">int</span>
+    value: <span class="tp">str</span>
+
+    <span class="kw">def</span> <span class="fn">encode</span>(self) -> <span class="tp">bytes</span>:
+        value_bytes = self.value.encode(<span class="st">"utf-8"</span>)
+        <span class="kw">if</span> len(value_bytes) > <span class="nb">255</span>:
+            <span class="kw">raise</span> <span class="tp">ValueError</span>(f<span class="st">"Tag {self.tag} value too long"</span>)
+        <span class="kw">if</span> self.tag < <span class="nb">1</span> <span class="kw">or</span> self.tag > <span class="nb">9</span>:
+            <span class="kw">raise</span> <span class="tp">ValueError</span>(f<span class="st">"Invalid tag number: {self.tag}"</span>)
+        <span class="kw">return</span> bytes([self.tag, len(value_bytes)]) + value_bytes</code></pre>
+</div>
+
+<table>
+  <tr><th>Tag</th><th>Name</th><th>Phase</th><th>Example</th></tr>
+  <tr><td>1</td><td>Seller Name</td><td style="color: #c8e64a;">Phase 1</td><td>Fikrah Tech</td></tr>
+  <tr><td>2</td><td>VAT Number</td><td style="color: #c8e64a;">Phase 1</td><td>300000000000003</td></tr>
+  <tr><td>3</td><td>Timestamp</td><td style="color: #c8e64a;">Phase 1</td><td>2024-01-15T10:30:00Z</td></tr>
+  <tr><td>4</td><td>Total Amount</td><td style="color: #c8e64a;">Phase 1</td><td>1150.00</td></tr>
+  <tr><td>5</td><td>VAT Amount</td><td style="color: #c8e64a;">Phase 1</td><td>150.00</td></tr>
+  <tr><td>6</td><td>Invoice Hash</td><td style="color: #fbbf24;">Phase 2</td><td>SHA-256 hash</td></tr>
+  <tr><td>7</td><td>ECDSA Signature</td><td style="color: #fbbf24;">Phase 2</td><td>Digital signature</td></tr>
+  <tr><td>8</td><td>ECDSA Public Key</td><td style="color: #fbbf24;">Phase 2</td><td>From certificate</td></tr>
+  <tr><td>9</td><td>ECDSA Stamp</td><td style="color: #fbbf24;">Phase 2</td><td>Certificate stamp</td></tr>
+</table>
+
+<div class="callout">
+  <p><strong>Error handling:</strong> The decoder validates at every step&mdash;truncated data (less than 2 bytes remaining), length exceeding available data, and invalid tag numbers (outside 1-9). Arabic text is handled naturally through UTF-8 multi-byte encoding.</p>
+</div>
+
+
+<!-- 5d. Validation Engine -->
+<h3>4d. Validation Engine &mdash; <code>validation.py</code> (16 rules)</h3>
+
+<p>XPath-based validation against 16 ZATCA business rules, including credit/debit note checks (BR-15, BR-16). Each rule extracts elements using namespace-aware XPath queries, then applies business logic. Failures are categorized as <strong>errors</strong> (blocking) or <strong>warnings</strong> (advisory).</p>
+
+<div class="code-block">
+<div class="code-header"><span>XPath extraction pattern</span><span class="lang">Python</span></div>
+<pre><code><span class="kw">def</span> <span class="fn">_xpath_text</span>(root: etree._Element, xpath: <span class="tp">str</span>) -> <span class="tp">str</span> | <span class="nb">None</span>:
+    <span class="st">"""Extract text from first matching XPath element."""</span>
+    result = root.xpath(xpath, namespaces=NS)
+    <span class="kw">if</span> result <span class="kw">and</span> hasattr(result[<span class="nb">0</span>], <span class="st">"text"</span>):
+        <span class="kw">return</span> result[<span class="nb">0</span>].text
+    <span class="kw">return</span> <span class="nb">None</span>
+
+<span class="cm"># Example: BR-05 seller name check</span>
+seller_name = _xpath_text(root,
+    <span class="st">"//cac:AccountingSupplierParty/cac:Party/cac:PartyLegalEntity/cbc:RegistrationName"</span>)
+<span class="kw">if not</span> seller_name:
+    errors.append(<span class="st">"BR-05: Seller name is mandatory"</span>)</code></pre>
+</div>
+
+<p><strong>Decimal tolerance:</strong> Math checks (BR-11, BR-14) use a &plusmn;0.01 tolerance to account for rounding differences between line-level and invoice-level calculations. If the math can't be verified (malformed values), a warning is issued instead of an error.</p>
+
+
+<!-- 5e. Fikra CLI -->
+<h3>4e. Fikra CLI Agent &mdash; <code>fikrah_agent.py</code> (961 lines)</h3>
+
+<p>A full Claude Code-style CLI agent that demonstrates real-world usage of the ZATCA tools. Not just an example&mdash;a complete product with streaming, HTML invoice rendering, QR image generation, and brand theming.</p>
+
+<div class="diagram-box">
+<pre>
+  User Input                Claude API              Tool Dispatch           Side Effects
+  ┌──────────┐    stream    ┌──────────┐   match    ┌──────────────┐      ┌──────────────┐
+  │  "I sold │───────────►  │  Claude   │──────────►│ execute_tool │─────►│ HTML Invoice  │
+  │  10 PCs" │              │  Sonnet   │           │              │      │ + QR Image    │
+  └──────────┘              └──────────┘           │  generate_   │      │ + Browser     │
+                                │                   │  invoice()   │      │   Open        │
+                                │  tool_use         └──────────────┘      └──────────────┘
+                                │  stop_reason            │
+                                ▼                         │ XML result
+                           ┌──────────┐                   │
+                           │ Continue │◄──────────────────┘
+                           │ stream   │   tool_result message
+                           └──────────┘
+                                │
+                                ▼
+                           Human-readable
+                           summary to user
+</pre>
+</div>
+
+<h4>Key Components</h4>
+
+<div class="card-grid">
+  <div class="card">
+    <h4>Tool Definitions</h4>
+    <p>4 tools defined in Claude API format (mirroring MCP tools). Each has <code>input_schema</code> with type, description, and required fields.</p>
+  </div>
+  <div class="card">
+    <h4>XML &rarr; HTML Pipeline</h4>
+    <p><code>parse_invoice_xml()</code> &rarr; <code>generate_html_invoice()</code> &rarr; <code>save_and_open_invoice()</code>. Extracts all data via XPath, renders styled HTML, opens in browser.</p>
+  </div>
+  <div class="card">
+    <h4>QR Image Generation</h4>
+    <p>Uses <code>qrcode</code> library to render TLV base64 data into a PNG, then embeds as a <code>data:image/png;base64,...</code> URI directly in the HTML invoice.</p>
+  </div>
+  <div class="card">
+    <h4>Streaming</h4>
+    <p><code>client.messages.stream()</code> with <code>text_stream</code> iterator. Text chunks are written directly to stdout for real-time feel. Token usage displayed after each response.</p>
+  </div>
+  <div class="card">
+    <h4>System Prompt</h4>
+    <p>Instructs Claude to be a Saudi e-invoicing specialist: gather info conversationally, infer defaults (SAR, SA, today's date), confirm before generating, mention the HTML side-effect.</p>
+  </div>
+  <div class="card">
+    <h4>Tool Loop Cap</h4>
+    <p>Tool use iterations capped at 10 to prevent runaway loops. Each iteration: execute tool calls, append results, continue streaming.</p>
+  </div>
+</div>
+
+
+<!-- 5f. Signing Engine -->
+<h3>4f. Signing Engine &mdash; <code>signing.py</code> (Phase 2)</h3>
+
+<p>Implements ZATCA's XAdES-BES digital signing profile using ECDSA secp256k1 keys. The module handles the full signing pipeline: key generation, CSR creation with ZATCA-required OID extensions, XML canonicalization, invoice hashing, and signature injection.</p>
+
+<div class="code-block">
+<div class="code-header"><span>XAdES-BES signature injection flow</span><span class="lang">Python</span></div>
+<pre><code><span class="kw">def</span> <span class="fn">inject_signature</span>(xml, cert_pem, key):
+    <span class="cm"># 1. Hash canonicalized invoice (sans UBLExtensions/Signature)</span>
+    <span class="cm"># 2. Build XAdES SignedProperties with cert digest</span>
+    <span class="cm"># 3. Compute SignedProperties digest</span>
+    <span class="cm"># 4. Build SignedInfo with both digests</span>
+    <span class="cm"># 5. Canonicalize and sign SignedInfo with ECDSA</span>
+    <span class="cm"># 6. Assemble ds:Signature (SignedInfo + SignatureValue + KeyInfo + QualifyingProperties)</span>
+    <span class="cm"># 7. Wrap in UBLExtensions and inject as first child of Invoice</span></code></pre>
+</div>
+
+<table>
+  <tr><th>Function</th><th>Purpose</th></tr>
+  <tr><td><code>generate_private_key()</code></td><td>ECDSA secp256k1 key generation</td></tr>
+  <tr><td><code>generate_csr(key, ...)</code></td><td>ZATCA-compliant CSR with SN, UID, Title OIDs (UTF8String encoding)</td></tr>
+  <tr><td><code>canonicalize_xml(xml)</code></td><td>Exclusive C14N, strips UBLExtensions and Signature</td></tr>
+  <tr><td><code>hash_invoice(xml)</code></td><td>SHA-256 of canonicalized XML (base64, for TLV tag 6)</td></tr>
+  <tr><td><code>sign_hash(key, hash)</code></td><td>ECDSA signature (for TLV tag 7)</td></tr>
+  <tr><td><code>inject_signature(xml, cert, key)</code></td><td>Full XAdES-BES pipeline: hash &rarr; sign &rarr; inject</td></tr>
+</table>
+
+<div class="callout">
+  <p><strong>ASN.1 encoding fix:</strong> ZATCA serial numbers contain pipe characters (<code>|</code>) which are invalid for ASN.1 PrintableString. The CSR builder uses <code>_ASN1Type.UTF8String</code> for all non-standard subject fields to avoid encoding errors.</p>
+</div>
+
+
+<!-- 5g. API Client -->
+<h3>4g. ZATCA API Client &mdash; <code>api/client.py</code> (Phase 2)</h3>
+
+<p>Async HTTP client for the ZATCA Fatoora API, supporting the full invoice lifecycle: compliance CSID issuance, compliance checking, invoice reporting (simplified B2C), and invoice clearance (standard B2B).</p>
+
+<table>
+  <tr><th>Method</th><th>Endpoint</th><th>Auth</th></tr>
+  <tr><td><code>get_compliance_csid()</code></td><td>POST /compliance</td><td>OTP header (no auth)</td></tr>
+  <tr><td><code>check_compliance()</code></td><td>POST /compliance/invoices</td><td>Basic (cert:secret)</td></tr>
+  <tr><td><code>report_invoice()</code></td><td>POST /invoices/reporting/single</td><td>Basic (cert:secret)</td></tr>
+  <tr><td><code>clear_invoice()</code></td><td>POST /invoices/clearance/single</td><td>Basic (cert:secret)</td></tr>
+  <tr><td><code>get_production_csid()</code></td><td>POST /production/csids</td><td>Basic (cert:secret)</td></tr>
+</table>
+
+<div class="callout">
+  <p><strong>Pydantic v2 models:</strong> Request/response types are defined in <code>api/models.py</code> using Pydantic v2 with <code>model_config = ConfigDict(populate_by_name=True)</code> for field aliasing. Pydantic is only used in the API layer&mdash;existing tools continue using raw dicts.</p>
+</div>
+
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 6. KEY DESIGN DECISIONS -->
+<!-- ═══════════════════════════════════════════════════ -->
+
+<section id="decisions">
+<h2>5. Key Design Decisions</h2>
+
+<div class="card-grid">
+  <div class="card">
+    <div class="icon">1</div>
+    <h4>Decimal over float</h4>
+    <p>All financial math uses <code>decimal.Decimal</code> with <code>ROUND_HALF_UP</code>. Floats introduce rounding errors that accumulate across line items&mdash;unacceptable for invoicing.</p>
+  </div>
+  <div class="card">
+    <div class="icon">2</div>
+    <h4>Flat structure over nested</h4>
+    <p>4 tools in one <code>server.py</code>. No <code>tools/</code> directory, no <code>models/</code> directory. The complexity budget doesn't warrant the indirection. If we had 15 tools, we'd split.</p>
+  </div>
+  <div class="card">
+    <div class="icon">3</div>
+    <h4>No Pydantic</h4>
+    <p>FastMCP auto-generates JSON schemas from type hints. Adding Pydantic would add a dependency for schema generation that MCP already handles. Manual validation is more transparent.</p>
+  </div>
+  <div class="card">
+    <div class="icon">4</div>
+    <h4>XPath for validation</h4>
+    <p>Declarative, namespace-aware queries. Each business rule maps to one XPath expression. Much cleaner than imperative element traversal for XML validation.</p>
+  </div>
+  <div class="card">
+    <div class="icon">5</div>
+    <h4>Fikra as example, not core</h4>
+    <p>The CLI lives in <code>examples/</code>, not <code>src/</code>. The MCP server is framework-agnostic. Fikra demonstrates what you can build on top, but it's not a dependency.</p>
+  </div>
+  <div class="card">
+    <div class="icon">6</div>
+    <h4>Warnings vs Errors</h4>
+    <p>Math failures (BR-11, BR-14) that can't be computed due to malformed data produce warnings, not errors. The validation still passes&mdash;the data just couldn't be verified.</p>
+  </div>
+  <div class="card">
+    <div class="icon">7</div>
+    <h4>JSON error returns</h4>
+    <p>Tools return <code>{"error": "..."}</code> instead of raising exceptions. LLMs can parse JSON errors and adjust their next tool call. Stack traces are useless to an AI agent.</p>
+  </div>
+  <div class="card">
+    <div class="icon">8</div>
+    <h4>Graceful degradation via ImportError</h4>
+    <p>Phase 2 tools register at startup but return helpful JSON errors if <code>cryptography</code> or <code>httpx</code> aren't installed. Phase 1 never breaks. <code>pytest.importorskip()</code> keeps Phase 1 CI green.</p>
+  </div>
+  <div class="card">
+    <div class="icon">9</div>
+    <h4>Stateless tools</h4>
+    <p>Private keys, certificates, and secrets are passed as parameters to each tool call&mdash;never stored in the server. No key management, no state, no security surface area.</p>
+  </div>
+</div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 7. IMPROVEMENTS -->
+<!-- ═══════════════════════════════════════════════════ -->
+
+<section id="improvements">
+<h2>6. Improvements Over Original Design</h2>
+
+<table>
+  <tr><th>Original Plan</th><th>What Was Built</th><th>Why It's Better</th></tr>
+  <tr>
+    <td>Pydantic models (SellerInfo, BuyerInfo, etc.)</td>
+    <td>Manual validation in <code>server.py</code></td>
+    <td>Fewer deps, same safety. MCP auto-generates schemas from type hints.</td>
+  </tr>
+  <tr>
+    <td><code>tools/</code> directory (3 files)</td>
+    <td>Single <code>server.py</code> (302 lines)</td>
+    <td>4 tools don't need 4 files. All tool logic is visible in one place.</td>
+  </tr>
+  <tr>
+    <td><code>models/</code> directory (2 files)</td>
+    <td>Inline dicts + type hints</td>
+    <td>MCP tool params are JSON strings. Pydantic schemas add indirection.</td>
+  </tr>
+  <tr>
+    <td>httpx for ZATCA API</td>
+    <td>Deferred to <code>[phase2]</code> optional deps</td>
+    <td>Phase 1 is offline. No API needed. Keep core deps minimal.</td>
+  </tr>
+  <tr>
+    <td>Basic <code>basic_usage.py</code> example</td>
+    <td>Full 961-line Fikra CLI agent</td>
+    <td>Demonstrates real-world usage with streaming, HTML, QR images.</td>
+  </tr>
+  <tr>
+    <td>No HTML output</td>
+    <td>Complete HTML invoice pipeline</td>
+    <td>Professional rendered invoices with embedded QR code images.</td>
+  </tr>
+  <tr>
+    <td>No streaming</td>
+    <td>Real-time streaming with <code>text_stream</code></td>
+    <td>Professional UX. Users see the response as it's generated.</td>
+  </tr>
+  <tr>
+    <td>No brand theme</td>
+    <td>Custom <code>#c8e64a</code> Fikra brand</td>
+    <td>Cohesive identity. CLI, HTML invoices, and docs share one palette.</td>
+  </tr>
+  <tr>
+    <td>No CI/lint/types</td>
+    <td>ruff + mypy + pytest matrix (3.10-3.12)</td>
+    <td>Production quality. Catches issues before they ship.</td>
+  </tr>
+  <tr>
+    <td>3 planned tools</td>
+    <td>4 shipped tools (<code>decode_qr</code> added)</td>
+    <td>Completeness. If you can encode, you should be able to decode.</td>
+  </tr>
+  <tr>
+    <td>No validation engine</td>
+    <td>217-line validation.py with 16 rules</td>
+    <td>Generate &rarr; Validate pipeline. Catch issues before they reach ZATCA.</td>
+  </tr>
+  <tr>
+    <td>Phase 2 deferred</td>
+    <td>Full Phase 2: signing, API, credit/debit notes</td>
+    <td>XAdES-BES signatures, ZATCA API integration, 100 tests, 8 tools.</td>
+  </tr>
+</table>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 8. DATA FLOW DIAGRAMS -->
+<!-- ═══════════════════════════════════════════════════ -->
+
+<section id="data-flow">
+<h2>7. Data Flow Diagrams</h2>
+
+<h3>QR Code Generation</h3>
+
+<div class="diagram-box">
+<pre>
+  Input                    Validate               Encode                 Verify
+  ┌─────────────────┐     ┌─────────────────┐    ┌─────────────────┐    ┌──────────────────┐
+  │ seller_name      │     │ VAT: 15 digits  │    │ TLV segments:   │    │ decode_tlv()     │
+  │ vat_number       │────►│ starts with 3   │───►│ [tag][len][val] │───►│ round-trip       │
+  │ timestamp        │     │ ends with 3     │    │ concatenate     │    │ verification     │
+  │ total_amount     │     │ digits only     │    │ base64 encode   │    │ all 5 fields     │
+  │ vat_amount       │     └─────────────────┘    └─────────────────┘    └──────────────────┘
+  └─────────────────┘                                    │
+                                                         ▼
+                                                  Base64 string
+                                                  "AQ5GaWtyYWguLi4="
+</pre>
+</div>
+
+<h3>Invoice Generation</h3>
+
+<div class="diagram-box">
+<pre>
+  Input                 Validate              Calculate             Build XML
+  ┌──────────────┐     ┌──────────────┐      ┌──────────────┐     ┌──────────────────────┐
+  │ invoice_type │     │ date format  │      │ per-line:    │     │ Root + 4 NS          │
+  │ seller info  │────►│ field lengths│─────►│  qty × price │────►│ Header + Type Code   │
+  │ buyer info   │     │ items JSON   │      │  × vat_rate  │     │ QR embed as DocRef   │
+  │ line items   │     │ VAT number   │      │              │     │ Parties (seller/buyer)│
+  │ currency     │     │ buyer VAT    │      │ tax groups   │     │ TaxTotal + subtotals │
+  └──────────────┘     │ (if B2B)     │      │ grand total  │     │ LegalMonetaryTotal   │
+                       └──────────────┘      └──────────────┘     │ InvoiceLines         │
+                                                                  └──────────────────────┘
+                                                                          │
+                                                                          ▼
+                                                                  UBL 2.1 XML string
+</pre>
+</div>
+
+<h3>Invoice Validation</h3>
+
+<div class="diagram-box">
+<pre>
+  XML Input               Parse                  16 Rule Checks                  Result
+  ┌──────────────┐       ┌──────────┐     ┌──────────────────────────┐     ┌──────────────┐
+  │ UBL 2.1      │       │ etree.   │     │ BR-01  Invoice ID       │     │ is_valid:    │
+  │ XML string   │──────►│ fromstr  │────►│ BR-02  Issue Date       │────►│   true/false │
+  │              │       │ ()       │     │ BR-03  Type Code        │     │ errors: []   │
+  └──────────────┘       └──────────┘     │ BR-04  Currency         │     │ warnings: [] │
+                              │           │ BR-05  Seller Name      │     │ checks_run:  │
+                              │           │ BR-06  Seller VAT       │     │   16         │
+                         XMLSyntaxError   │ BR-07  Buyer Name       │     └──────────────┘
+                         = immediate      │ BR-08  Buyer VAT (B2B)  │
+                           fail           │ BR-10  Line items exist │
+                                          │ BR-11  Line math ±0.01 │
+                                          │ BR-12  Tax total exists │
+                                          │ BR-13  Payable amount   │
+                                          │ BR-14  Total cross-check│
+                                          │ BR-15  Billing ref (CN) │
+                                          │ BR-16  Instruction note │
+                                          │   + UUID warning        │
+                                          │   + Address warning     │
+                                          └──────────────────────────┘
+</pre>
+</div>
+
+<h3>Fikra Agent Loop</h3>
+
+<div class="diagram-box">
+<pre>
+  ┌──────────────────────────────────────────────────────────────────────┐
+  │                         CHAT LOOP                                   │
+  │                                                                     │
+  │   ❯ user input ──► messages.append({role: "user", ...})            │
+  │         │                                                           │
+  │         ▼                                                           │
+  │   _stream_response(client, messages)                                │
+  │         │                                                           │
+  │         ├── text chunks ──► stdout (real-time)                      │
+  │         │                                                           │
+  │         └── stop_reason == "tool_use"?                              │
+  │              │                                                      │
+  │         ┌────┴────┐                                                 │
+  │         │  Yes    │  No ──► record assistant message ──► next ❯     │
+  │         │         │                                                 │
+  │         ▼         │                                                 │
+  │   for block in content:                                             │
+  │     if tool_use:                                                    │
+  │       ⏺ tool_name                                                  │
+  │       result = execute_tool(name, args)                             │
+  │       if generate_invoice:                                          │
+  │         side-effect: HTML + QR → browser                            │
+  │                                                                     │
+  │   messages.append(tool_results)                                     │
+  │   loop back (max 10 iterations) ──► _stream_response() again       │
+  └──────────────────────────────────────────────────────────────────────┘
+</pre>
+</div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 9. TESTING STRATEGY -->
+<!-- ═══════════════════════════════════════════════════ -->
+
+<section id="testing">
+<h2>8. Testing Strategy</h2>
+
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="number">13</div>
+    <div class="label">TLV Tests</div>
+  </div>
+  <div class="stat-card">
+    <div class="number">16</div>
+    <div class="label">Invoice Tests</div>
+  </div>
+  <div class="stat-card">
+    <div class="number">20</div>
+    <div class="label">Validation Tests</div>
+  </div>
+  <div class="stat-card">
+    <div class="number">23</div>
+    <div class="label">Signing Tests</div>
+  </div>
+  <div class="stat-card">
+    <div class="number">14</div>
+    <div class="label">Credit/Debit Tests</div>
+  </div>
+  <div class="stat-card">
+    <div class="number">15</div>
+    <div class="label">API Client Tests</div>
+  </div>
+  <div class="stat-card">
+    <div class="number">6</div>
+    <div class="label">Test Modules</div>
+  </div>
+  <div class="stat-card">
+    <div class="number">3</div>
+    <div class="label">Python Versions</div>
+  </div>
+</div>
+
+<h3>Test Patterns</h3>
+
+<div class="card-grid">
+  <div class="card">
+    <h4>Factory Functions</h4>
+    <p><code>_make_invoice(**overrides)</code> and <code>_valid_invoice(**overrides)</code> provide sensible defaults. Tests only specify what they're testing. Override one param, get a complete invoice.</p>
+  </div>
+  <div class="card">
+    <h4>XPath Assertions</h4>
+    <p>Tests parse generated XML with <code>lxml.etree</code> and assert via XPath. <code>root.xpath("//cbc:PayableAmount", namespaces=NS)</code> directly checks the output structure.</p>
+  </div>
+  <div class="card">
+    <h4>Generate &rarr; Validate</h4>
+    <p>Integration tests run the full pipeline: build invoice XML, then validate it. If the builder and validator agree, the system is internally consistent.</p>
+  </div>
+</div>
+
+<h3>Edge Cases Covered</h3>
+
+<table>
+  <tr><th>Category</th><th>Test</th><th>Why It Matters</th></tr>
+  <tr>
+    <td>Zero VAT</td>
+    <td>0% rate with category "E" (exempt)</td>
+    <td>Must not break math or produce negative totals</td>
+  </tr>
+  <tr>
+    <td>Mixed rates</td>
+    <td>15% + 0% items in one invoice</td>
+    <td>Multi-rate TaxSubtotal grouping must work</td>
+  </tr>
+  <tr>
+    <td>Arabic text</td>
+    <td>Arabic seller name, buyer name, item names</td>
+    <td>UTF-8 multi-byte encoding in TLV and XML</td>
+  </tr>
+  <tr>
+    <td>Fractional qty</td>
+    <td><code>quantity: 2.5</code> (e.g., 2.5 kg flour)</td>
+    <td>Decimal math must handle non-integer quantities</td>
+  </tr>
+  <tr>
+    <td>Large numbers</td>
+    <td><code>quantity: 100000, price: 0.50</code></td>
+    <td>No overflow or precision loss at scale</td>
+  </tr>
+  <tr>
+    <td>Tampered data</td>
+    <td>Modified LineExtensionAmount in XML</td>
+    <td>BR-11 must catch math mismatches</td>
+  </tr>
+  <tr>
+    <td>Truncated TLV</td>
+    <td>1-byte and short payloads</td>
+    <td>Decoder must not crash on malformed input</td>
+  </tr>
+  <tr>
+    <td>Boundary values</td>
+    <td>255-byte value, empty string, tags 1 and 9</td>
+    <td>Min/max limits of the TLV format</td>
+  </tr>
+</table>
+
+<h3>CI Pipeline</h3>
+
+<div class="code-block">
+<div class="code-header"><span>.github/workflows/test.yml</span><span class="lang">YAML</span></div>
+<pre><code><span class="cm"># Three jobs: lint + test (Phase 1) + test-phase2</span>
+
+<span class="fn">lint:</span>
+  - ruff check src/ tests/          <span class="cm"># Linting</span>
+  - ruff format --check src/ tests/  <span class="cm"># Format check</span>
+  - mypy src/zatca_mcp/              <span class="cm"># Type checking</span>
+
+<span class="fn">test:</span>
+  <span class="cm"># matrix: python-version: ["3.10", "3.11", "3.12"]</span>
+  - pytest tests/ -v --tb=short --cov=zatca_mcp --cov-report=term-missing
+
+<span class="fn">test-phase2:</span>
+  <span class="cm"># Python 3.12 with [dev,phase2] deps</span>
+  - pytest tests/ -v --tb=short --cov=zatca_mcp -m <span class="st">"not sandbox"</span></code></pre>
+</div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 10. ZATCA COMPLIANCE -->
+<!-- ═══════════════════════════════════════════════════ -->
+
+<section id="compliance">
+<h2>9. ZATCA Compliance Details</h2>
+
+<h3>Business Rules (BR-01 through BR-16)</h3>
+
+<table>
+  <tr><th>Rule</th><th>Check</th><th>Type</th><th>XPath / Logic</th></tr>
+  <tr>
+    <td style="color: #38bdf8;">BR-01</td>
+    <td>Invoice ID is mandatory</td>
+    <td style="color: #f87171;">Error</td>
+    <td><code>//cbc:ID</code></td>
+  </tr>
+  <tr>
+    <td style="color: #38bdf8;">BR-02</td>
+    <td>Issue Date is mandatory + YYYY-MM-DD format</td>
+    <td style="color: #f87171;">Error</td>
+    <td><code>//cbc:IssueDate</code> + regex</td>
+  </tr>
+  <tr>
+    <td style="color: #38bdf8;">BR-03</td>
+    <td>Invoice Type Code must be 388, 381, or 383</td>
+    <td style="color: #f87171;">Error</td>
+    <td><code>//cbc:InvoiceTypeCode</code></td>
+  </tr>
+  <tr>
+    <td style="color: #38bdf8;">BR-04</td>
+    <td>Document Currency Code is mandatory</td>
+    <td style="color: #f87171;">Error</td>
+    <td><code>//cbc:DocumentCurrencyCode</code></td>
+  </tr>
+  <tr>
+    <td style="color: #38bdf8;">BR-05</td>
+    <td>Seller name is mandatory</td>
+    <td style="color: #f87171;">Error</td>
+    <td><code>//cac:AccountingSupplierParty//cbc:RegistrationName</code></td>
+  </tr>
+  <tr>
+    <td style="color: #38bdf8;">BR-06</td>
+    <td>Seller VAT: 15 digits, starts/ends with 3</td>
+    <td style="color: #f87171;">Error</td>
+    <td><code>//cac:PartyTaxScheme/cbc:CompanyID</code> + format check</td>
+  </tr>
+  <tr>
+    <td style="color: #38bdf8;">BR-07</td>
+    <td>Buyer name is mandatory</td>
+    <td style="color: #f87171;">Error</td>
+    <td><code>//cac:AccountingCustomerParty//cbc:RegistrationName</code></td>
+  </tr>
+  <tr>
+    <td style="color: #38bdf8;">BR-08</td>
+    <td>Buyer VAT required for standard invoices</td>
+    <td style="color: #f87171;">Error</td>
+    <td><code>InvoiceTypeCode/@name</code> starts with "01"</td>
+  </tr>
+  <tr>
+    <td style="color: #38bdf8;">BR-10</td>
+    <td>At least one invoice line</td>
+    <td style="color: #f87171;">Error</td>
+    <td><code>//cac:InvoiceLine</code> count &gt; 0</td>
+  </tr>
+  <tr>
+    <td style="color: #38bdf8;">BR-11</td>
+    <td>Line total = qty &times; price (&plusmn;0.01)</td>
+    <td style="color: #f87171;">Error</td>
+    <td>Per-line Decimal math with tolerance</td>
+  </tr>
+  <tr>
+    <td style="color: #38bdf8;">BR-12</td>
+    <td>Tax total amount is mandatory</td>
+    <td style="color: #f87171;">Error</td>
+    <td><code>//cac:TaxTotal/cbc:TaxAmount</code></td>
+  </tr>
+  <tr>
+    <td style="color: #38bdf8;">BR-13</td>
+    <td>Payable amount is mandatory</td>
+    <td style="color: #f87171;">Error</td>
+    <td><code>//cac:LegalMonetaryTotal/cbc:PayableAmount</code></td>
+  </tr>
+  <tr>
+    <td style="color: #38bdf8;">BR-14</td>
+    <td>TaxInclusive = TaxExclusive + TaxAmount (&plusmn;0.01)</td>
+    <td style="color: #f87171;">Error</td>
+    <td>Cross-check three monetary elements</td>
+  </tr>
+  <tr>
+    <td style="color: #38bdf8;">BR-15</td>
+    <td>Credit/Debit notes must have BillingReference</td>
+    <td style="color: #f87171;">Error</td>
+    <td><code>//cac:BillingReference</code> when type 381/383</td>
+  </tr>
+  <tr>
+    <td style="color: #38bdf8;">BR-16</td>
+    <td>Credit/Debit notes should have InstructionNote</td>
+    <td style="color: #fbbf24;">Warning</td>
+    <td><code>//cac:PaymentMeans/cbc:InstructionNote</code></td>
+  </tr>
+  <tr>
+    <td style="color: #64748b;">W-01</td>
+    <td>UUID is recommended</td>
+    <td style="color: #fbbf24;">Warning</td>
+    <td><code>//cbc:UUID</code></td>
+  </tr>
+  <tr>
+    <td style="color: #64748b;">W-02</td>
+    <td>Seller address is recommended</td>
+    <td style="color: #fbbf24;">Warning</td>
+    <td><code>//PostalAddress/cbc:StreetName</code></td>
+  </tr>
+</table>
+
+<h3>Invoice Types</h3>
+
+<table>
+  <tr><th>Type</th><th>Code</th><th>Sub-Type</th><th>Use Case</th><th>Buyer VAT</th></tr>
+  <tr>
+    <td>Standard Tax Invoice</td>
+    <td>388</td>
+    <td>0100000</td>
+    <td>B2B transactions</td>
+    <td style="color: #f87171;">Required</td>
+  </tr>
+  <tr>
+    <td>Simplified Tax Invoice</td>
+    <td>388</td>
+    <td>0200000</td>
+    <td>B2C transactions</td>
+    <td style="color: #c8e64a;">Optional</td>
+  </tr>
+  <tr>
+    <td>Standard Credit Note</td>
+    <td>381</td>
+    <td>0100000</td>
+    <td>B2B returns/refunds</td>
+    <td style="color: #f87171;">Required</td>
+  </tr>
+  <tr>
+    <td>Simplified Credit Note</td>
+    <td>381</td>
+    <td>0200000</td>
+    <td>B2C returns/refunds</td>
+    <td style="color: #c8e64a;">Optional</td>
+  </tr>
+  <tr>
+    <td>Standard Debit Note</td>
+    <td>383</td>
+    <td>0100000</td>
+    <td>B2B additional charges</td>
+    <td style="color: #f87171;">Required</td>
+  </tr>
+  <tr>
+    <td>Simplified Debit Note</td>
+    <td>383</td>
+    <td>0200000</td>
+    <td>B2C additional charges</td>
+    <td style="color: #c8e64a;">Optional</td>
+  </tr>
+</table>
+
+<h3>Phase 2 Status</h3>
+
+<div class="callout success">
+  <p><strong>Phase 2 is complete.</strong> XAdES-BES digital signing (ECDSA secp256k1), ZATCA Fatoora API client (async httpx), credit/debit note support (381/383), CSR generation, and compliance checking are all implemented. TLV tags 6-8 are populated with real cryptographic data by the <code>sign_invoice</code> tool. Install with <code>pip install zatca-mcp[phase2]</code> to enable.</p>
+</div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 11. ROADMAP -->
+<!-- ═══════════════════════════════════════════════════ -->
+
+<section id="roadmap">
+<h2>10. What's Next</h2>
+
+<div class="timeline">
+  <div class="timeline-item done">
+    <h4>ZATCA API Integration</h4>
+    <p>Async httpx client for sandbox and production Fatoora APIs. Five endpoints: compliance CSID, compliance check, invoice reporting, invoice clearance, production CSID. Pydantic v2 models for all requests/responses.</p>
+  </div>
+  <div class="timeline-item done">
+    <h4>XAdES-BES Digital Signing</h4>
+    <p>ECDSA secp256k1 key generation, CSR creation with ZATCA OID extensions, XML canonicalization (exclusive C14N), SHA-256 hashing, XAdES-BES signature injection. TLV tags 6-8 populated with real cryptographic data.</p>
+  </div>
+  <div class="timeline-item done">
+    <h4>Credit &amp; Debit Notes</h4>
+    <p>Type codes 381 (credit) and 383 (debit) with BillingReference and InstructionNote. BR-15/BR-16 validation rules. Standard and simplified subtypes.</p>
+  </div>
+  <div class="timeline-item">
+    <h4>MCP Resources &amp; Prompts</h4>
+    <p>Add MCP Resources (read-only data like invoice templates, VAT rate references) and Prompts (guided workflows like "help me create a standard invoice").</p>
+  </div>
+  <div class="timeline-item">
+    <h4>HTTP/SSE Transport</h4>
+    <p>Add an HTTP + Server-Sent Events transport option for remote/cloud deployment and multi-client access, alongside the existing stdio transport.</p>
+  </div>
+  <div class="timeline-item">
+    <h4>Arabic RTL Invoice Template</h4>
+    <p>A right-to-left HTML invoice template for Arabic-first businesses. Detect language from seller name and auto-select the appropriate layout direction.</p>
+  </div>
+</div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- 12. FOOTER -->
+<!-- ═══════════════════════════════════════════════════ -->
+
+</div>
+
+<footer style="text-align: center; padding: 3rem; color: #475569; border-top: 1px solid #1e293b; margin-top: 3rem;">
+  <p style="margin-bottom: 0.5rem;">
+    <span style="color: #c8e64a; font-weight: 700;">Built by Fikrah</span>
+  </p>
+  <p style="font-size: 0.85rem;">
+    8 MCP Tools &nbsp;&middot;&nbsp; 16 Validation Rules &nbsp;&middot;&nbsp; 101 Tests &nbsp;&middot;&nbsp; 6 Test Modules &nbsp;&middot;&nbsp; Phase 1 + 2 Complete
+  </p>
+  <p style="font-size: 0.8rem; margin-top: 0.5rem;">
+    ZATCA MCP System Design Document &nbsp;|&nbsp; 2026
+  </p>
+</footer>
+
+</body>
+</html>

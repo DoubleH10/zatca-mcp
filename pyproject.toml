@@ -29,6 +29,7 @@ dependencies = [
 
 [project.optional-dependencies]
 phase2 = [
+    "cryptography>=41.0.0",
     "pydantic>=2.0.0",
     "httpx>=0.25.0",
 ]
@@ -60,6 +61,9 @@ packages = ["src/zatca_mcp"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "sandbox: marks tests that hit the live ZATCA sandbox (deselect with '-m \"not sandbox\"')",
+]
 
 [tool.ruff]
 target-version = "py310"

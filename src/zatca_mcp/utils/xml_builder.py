@@ -34,6 +34,8 @@ INVOICE_TYPE_CODES = {
 INVOICE_SUBTYPE_CODES = {
     "standard": "0100000",  # Standard tax invoice
     "simplified": "0200000",  # Simplified tax invoice
+    "credit_note": "0100000",  # Credit note (standard sub-type)
+    "debit_note": "0100000",  # Debit note (standard sub-type)
 }
 
 
@@ -112,12 +114,15 @@ def build_invoice_xml(
     buyer_city: str = "",
     note: str | None = None,
     qr_data: str | None = None,
+    billing_reference_id: str | None = None,
+    billing_reference_date: str | None = None,
+    instruction_note: str | None = None,
 ) -> str:
     """
     Build a ZATCA-compliant UBL 2.1 invoice XML.
 
     Args:
-        invoice_type: "standard" or "simplified"
+        invoice_type: "standard", "simplified", "credit_note", or "debit_note"
         invoice_number: Unique invoice identifier
         issue_date: ISO date (YYYY-MM-DD)
         seller_name: Seller business name
@@ -132,6 +137,9 @@ def build_invoice_xml(
         buyer_city: Buyer city
         note: Optional invoice note
         qr_data: Optional Base64-encoded QR data to embed
+        billing_reference_id: Original invoice ID (required for credit/debit notes)
+        billing_reference_date: Original invoice date (optional, for credit/debit notes)
+        instruction_note: Reason for credit/debit note (recommended)
 
     Returns:
         Pretty-printed XML string
@@ -172,6 +180,20 @@ def build_invoice_xml(
     # Note
     if note:
         _add_text_element(root, "cbc", "Note", note)
+
+    # Billing Reference (for credit/debit notes)
+    if billing_reference_id:
+        billing_ref = etree.SubElement(root, _qn("cac", "BillingReference"))
+        inv_doc_ref = etree.SubElement(billing_ref, _qn("cac", "InvoiceDocumentReference"))
+        _add_text_element(inv_doc_ref, "cbc", "ID", billing_reference_id)
+        if billing_reference_date:
+            _add_text_element(inv_doc_ref, "cbc", "IssueDate", billing_reference_date)
+
+    # Payment Means (with InstructionNote for credit/debit notes)
+    if instruction_note and invoice_type in ("credit_note", "debit_note"):
+        payment_means = etree.SubElement(root, _qn("cac", "PaymentMeans"))
+        _add_text_element(payment_means, "cbc", "PaymentMeansCode", "30")
+        _add_text_element(payment_means, "cbc", "InstructionNote", instruction_note)
 
     # QR Code (Additional Document Reference)
     if qr_data:

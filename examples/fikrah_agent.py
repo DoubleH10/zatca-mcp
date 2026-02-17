@@ -190,6 +190,106 @@ TOOLS = [
             "required": ["qr_base64"],
         },
     },
+    {
+        "name": "generate_csr",
+        "description": (
+            "Generate a ZATCA-compliant Certificate Signing Request (CSR). "
+            "Creates an ECDSA key pair and CSR for ZATCA onboarding."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "common_name": {"type": "string", "description": "Certificate CN"},
+                "organization": {"type": "string", "description": "Organization name"},
+                "organizational_unit": {"type": "string", "description": "Department/unit"},
+                "country": {"type": "string", "default": "SA"},
+                "serial_number": {
+                    "type": "string",
+                    "description": "ZATCA device serial",
+                    "default": "1-TST|2-TST|3-ed22f1d8-e6a2-1118-9b58-d9a8195e2f28",
+                },
+                "invoice_type": {"type": "string", "default": "1100"},
+                "location": {"type": "string", "default": "Riyadh"},
+                "industry": {"type": "string", "default": "IT"},
+            },
+            "required": ["common_name", "organization", "organizational_unit"],
+        },
+    },
+    {
+        "name": "sign_invoice",
+        "description": (
+            "Digitally sign a ZATCA invoice with XAdES-BES. "
+            "Injects signature into UBLExtensions and rebuilds QR with Phase 2 tags."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "invoice_xml": {"type": "string", "description": "Unsigned invoice XML"},
+                "certificate_pem": {"type": "string", "description": "PEM X.509 cert"},
+                "private_key_pem": {"type": "string", "description": "PEM private key"},
+            },
+            "required": ["invoice_xml", "certificate_pem", "private_key_pem"],
+        },
+    },
+    {
+        "name": "submit_invoice",
+        "description": (
+            "Submit a signed invoice to ZATCA for reporting or clearance."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "signed_invoice_xml": {"type": "string"},
+                "invoice_hash": {"type": "string"},
+                "invoice_uuid": {"type": "string"},
+                "certificate": {"type": "string", "description": "Base64 cert"},
+                "secret": {"type": "string", "description": "API secret"},
+                "mode": {
+                    "type": "string",
+                    "enum": ["reporting", "clearance"],
+                    "default": "reporting",
+                },
+                "environment": {
+                    "type": "string",
+                    "enum": ["sandbox", "production"],
+                    "default": "sandbox",
+                },
+            },
+            "required": [
+                "signed_invoice_xml",
+                "invoice_hash",
+                "invoice_uuid",
+                "certificate",
+                "secret",
+            ],
+        },
+    },
+    {
+        "name": "check_compliance",
+        "description": "Check a signed invoice against ZATCA compliance rules.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "signed_invoice_xml": {"type": "string"},
+                "invoice_hash": {"type": "string"},
+                "invoice_uuid": {"type": "string"},
+                "certificate": {"type": "string"},
+                "secret": {"type": "string"},
+                "environment": {
+                    "type": "string",
+                    "enum": ["sandbox", "production"],
+                    "default": "sandbox",
+                },
+            },
+            "required": [
+                "signed_invoice_xml",
+                "invoice_hash",
+                "invoice_uuid",
+                "certificate",
+                "secret",
+            ],
+        },
+    },
 ]
 
 
@@ -730,6 +830,75 @@ def execute_tool(name: str, args: dict) -> str:
             decoded = decode_tlv_named(args["qr_base64"])
             return json.dumps(decoded, indent=2, ensure_ascii=False)
 
+        elif name == "generate_csr":
+            try:
+                from zatca_mcp.utils.signing import (
+                    generate_private_key,
+                    serialize_private_key,
+                    generate_csr as _gen_csr,
+                )
+            except ImportError:
+                return json.dumps({
+                    "error": "Phase 2 deps not installed",
+                    "fix": "pip install zatca-mcp[phase2]",
+                })
+            key = generate_private_key()
+            csr_pem = _gen_csr(
+                key=key,
+                common_name=args["common_name"],
+                organization=args["organization"],
+                organizational_unit=args["organizational_unit"],
+                country=args.get("country", "SA"),
+                serial_number=args.get(
+                    "serial_number",
+                    "1-TST|2-TST|3-ed22f1d8-e6a2-1118-9b58-d9a8195e2f28",
+                ),
+                invoice_type=args.get("invoice_type", "1100"),
+                location=args.get("location", "Riyadh"),
+                industry=args.get("industry", "IT"),
+            )
+            pk_pem = serialize_private_key(key)
+            return json.dumps({
+                "csr_pem": csr_pem.decode("utf-8"),
+                "private_key_pem": pk_pem.decode("utf-8"),
+                "warning": "Store the private key securely.",
+                "next_step": "Submit CSR to ZATCA to get compliance certificate",
+            }, indent=2)
+
+        elif name == "sign_invoice":
+            try:
+                from zatca_mcp.utils.signing import (
+                    inject_signature,
+                    hash_invoice,
+                    load_private_key,
+                )
+            except ImportError:
+                return json.dumps({
+                    "error": "Phase 2 deps not installed",
+                    "fix": "pip install zatca-mcp[phase2]",
+                })
+            key = load_private_key(args["private_key_pem"].encode("utf-8"))
+            xml_bytes = args["invoice_xml"].encode("utf-8")
+            inv_hash = hash_invoice(xml_bytes)
+            signed = inject_signature(xml_bytes, args["certificate_pem"], key)
+            return json.dumps({
+                "signed_xml": signed.decode("utf-8"),
+                "invoice_hash": inv_hash,
+                "is_phase2_compliant": True,
+            }, indent=2, ensure_ascii=False)
+
+        elif name == "submit_invoice":
+            return json.dumps({
+                "error": "submit_invoice requires async ZATCA API. Use the MCP server.",
+                "hint": "Run zatca-mcp server and call submit_invoice through MCP.",
+            })
+
+        elif name == "check_compliance":
+            return json.dumps({
+                "error": "check_compliance requires async ZATCA API. Use the MCP server.",
+                "hint": "Run zatca-mcp server and call check_compliance through MCP.",
+            })
+
         else:
             return json.dumps({"error": f"Unknown tool: {name}"})
 
@@ -751,11 +920,12 @@ Your role is to help businesses create ZATCA-compliant electronic invoices throu
    - Infer what you can (e.g., simplified invoice for consumers, standard for businesses)
 
 2. REQUIRED information for an invoice:
-   - Invoice type: standard (B2B, needs buyer VAT) or simplified (B2C)
+   - Invoice type: standard (B2B, needs buyer VAT), simplified (B2C), credit_note, or debit_note
    - Seller details: name, VAT number, address, city
    - Buyer details: name (+ VAT for B2B)
    - Line items: what was sold, quantity, unit price
    - Issue date (default to today)
+   - For credit/debit notes: original invoice ID, reason
 
 3. GENERATE the invoice using your tools:
    - First generate the invoice XML
@@ -763,28 +933,40 @@ Your role is to help businesses create ZATCA-compliant electronic invoices throu
    - Show a human-readable summary of the invoice
    - Mention the QR code was embedded
 
-4. COMMUNICATION STYLE:
+4. PHASE 2 WORKFLOW (Digital Signing & ZATCA Integration):
+   When the user needs ZATCA Phase 2 compliance:
+   a. generate_csr → Create CSR and private key for ZATCA onboarding
+   b. Submit CSR to ZATCA portal to get compliance certificate
+   c. sign_invoice → Digitally sign the invoice with XAdES-BES
+   d. submit_invoice → Send to ZATCA for reporting/clearance
+   e. check_compliance → Validate against ZATCA's server-side rules
+
+5. COMMUNICATION STYLE:
    - Be conversational and efficient — no jargon dumps
    - Ask focused questions, not a checklist
    - Confirm details before generating
    - Show excitement about closing deals!
    - Use Arabic business terms naturally if the user does
 
-5. IMPORTANT:
+6. IMPORTANT:
    - VAT rate in Saudi is 15% (standard)
    - VAT numbers are 15 digits, start and end with 3
    - Always validate after generating
    - If validation fails, fix and regenerate
 
-6. HTML INVOICE:
+7. HTML INVOICE:
    - When you generate an invoice XML, a professional HTML invoice is automatically created and opened in the user's browser with a QR code image
    - Mention this to the user so they know a visual invoice was generated
 
 You have access to these ZATCA tools:
-- generate_invoice: Create UBL 2.1 XML invoices
+- generate_invoice: Create UBL 2.1 XML invoices (standard, simplified, credit_note, debit_note)
 - generate_qr_code: Create TLV QR codes
-- validate_invoice: Check compliance
+- validate_invoice: Check compliance (16 business rules)
 - decode_qr: Inspect QR code data
+- generate_csr: Create CSR for ZATCA onboarding (Phase 2)
+- sign_invoice: XAdES-BES digital signing (Phase 2)
+- submit_invoice: Report/clear invoices with ZATCA API (Phase 2)
+- check_compliance: Server-side ZATCA validation (Phase 2)
 
 Today's date is: """ + datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
@@ -808,12 +990,25 @@ BANNER = """\
 MODEL_NAME = os.environ.get("FIKRAH_MODEL", "claude-sonnet-4-20250514")
 
 
+def _check_phase2():
+    """Check if Phase 2 dependencies are available."""
+    try:
+        import cryptography  # noqa: F401
+        import httpx  # noqa: F401
+        import pydantic  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 def print_banner():
     """Display the Fikra CLI welcome banner."""
     console.print(BANNER)
+    phase2_available = _check_phase2()
+    phase_str = "[fikra.success]Phase 2 ✓[/]" if phase2_available else "[fikra.dim]Phase 1 only[/]"
     console.print(
         f"  [fikra.dim]Model: {MODEL_NAME}  |  Tools: {len(TOOLS)} ZATCA tools"
-        f"  |  cwd: {os.getcwd()}[/]"
+        f"  |  {phase_str}  |  cwd: {os.getcwd()}[/]"
     )
     console.print()
     console.print(

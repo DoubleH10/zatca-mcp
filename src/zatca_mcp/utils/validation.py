@@ -197,6 +197,30 @@ def validate_invoice_xml(xml_string: str) -> dict:
         except (ValueError, ArithmeticError):
             warnings.append("BR-14: Could not cross-check invoice totals")
 
+    # BR-15: Credit/Debit notes must have BillingReference
+    if type_code in ("381", "383"):
+        billing_ref = root.xpath(
+            "//cac:BillingReference/cac:InvoiceDocumentReference/cbc:ID",
+            namespaces=NS,
+        )
+        if not billing_ref or not billing_ref[0].text:
+            errors.append(
+                "BR-15: Credit/Debit notes must have a BillingReference "
+                "with original invoice ID"
+            )
+
+    # BR-16: Credit/Debit notes should have InstructionNote
+    if type_code in ("381", "383"):
+        instruction_note = _xpath_text(
+            root,
+            "//cac:PaymentMeans/cbc:InstructionNote",
+        )
+        if not instruction_note:
+            warnings.append(
+                "BR-16: Credit/Debit notes should include an InstructionNote "
+                "explaining the reason"
+            )
+
     # Warnings (non-blocking)
     if not _xpath_text(root, "//cbc:UUID"):
         warnings.append("Invoice UUID is recommended")
@@ -212,5 +236,5 @@ def validate_invoice_xml(xml_string: str) -> dict:
         "is_valid": len(errors) == 0,
         "errors": errors,
         "warnings": warnings,
-        "checks_run": 14,
+        "checks_run": 16,
     }

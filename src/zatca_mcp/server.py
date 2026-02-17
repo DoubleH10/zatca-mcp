@@ -111,15 +111,19 @@ async def generate_invoice(
     buyer_address: str = "",
     buyer_city: str = "",
     note: str | None = None,
+    billing_reference_id: str | None = None,
+    billing_reference_date: str | None = None,
+    instruction_note: str | None = None,
 ) -> str:
     """Generate a ZATCA-compliant UBL 2.1 XML e-invoice.
 
     Creates a complete XML invoice following Saudi Arabia's ZATCA e-invoicing
-    standard. Supports both Standard (B2B) and Simplified (B2C) invoice types.
-    Automatically calculates VAT, line totals, and embeds QR code data.
+    standard. Supports Standard (B2B), Simplified (B2C), Credit Note, and
+    Debit Note invoice types. Automatically calculates VAT, line totals,
+    and embeds QR code data.
 
     Args:
-        invoice_type: "standard" (B2B, requires buyer VAT) or "simplified" (B2C)
+        invoice_type: "standard" (B2B), "simplified" (B2C), "credit_note", or "debit_note"
         invoice_number: Unique invoice identifier (e.g., "INV-2024-001")
         issue_date: Invoice date in YYYY-MM-DD format
         seller_name: Seller business name
@@ -133,6 +137,9 @@ async def generate_invoice(
         buyer_address: Buyer street address (optional)
         buyer_city: Buyer city (optional)
         note: Optional note to include on the invoice
+        billing_reference_id: Original invoice ID (required for credit/debit notes)
+        billing_reference_date: Original invoice date (for credit/debit notes)
+        instruction_note: Reason for credit/debit note (recommended)
 
     Returns:
         Complete UBL 2.1 XML invoice string
@@ -240,6 +247,9 @@ async def generate_invoice(
         currency=currency,
         note=note,
         qr_data=qr_data,
+        billing_reference_id=billing_reference_id,
+        billing_reference_date=billing_reference_date,
+        instruction_note=instruction_note,
     )
 
     return xml
@@ -290,6 +300,306 @@ async def decode_qr(qr_base64: str) -> str:
         return json.dumps(decoded, indent=2, ensure_ascii=False)
     except Exception as e:
         return json.dumps({"error": f"Failed to decode QR: {str(e)}"})
+
+
+# ═══════════════════════════════════════════════════
+# TOOL 5: CSR Generation (Phase 2)
+# ═══════════════════════════════════════════════════
+
+@mcp.tool()
+async def generate_csr(
+    common_name: str,
+    organization: str,
+    organizational_unit: str,
+    country: str = "SA",
+    serial_number: str = "1-TST|2-TST|3-ed22f1d8-e6a2-1118-9b58-d9a8195e2f28",
+    invoice_type: str = "1100",
+    location: str = "Riyadh",
+    industry: str = "IT",
+) -> str:
+    """Generate a ZATCA-compliant Certificate Signing Request (CSR).
+
+    Creates an ECDSA key pair and CSR with ZATCA-required subject fields.
+    The CSR is used to obtain a compliance certificate from ZATCA.
+
+    Args:
+        common_name: Common name for the certificate (e.g., device or taxpayer name)
+        organization: Organization name
+        organizational_unit: Organizational unit (e.g., "Invoicing", "IT")
+        country: Country code (default: "SA")
+        serial_number: ZATCA device serial number
+        invoice_type: ZATCA invoice type code (e.g., "1100")
+        location: Business location
+        industry: Business industry category
+
+    Returns:
+        JSON with csr_pem, private_key_pem, and next steps
+    """
+    try:
+        from zatca_mcp.utils.signing import (
+            generate_private_key,
+            serialize_private_key,
+            generate_csr as _generate_csr,
+        )
+    except ImportError:
+        return json.dumps({
+            "error": "Phase 2 dependencies not installed",
+            "fix": "pip install zatca-mcp[phase2]",
+            "details": "The cryptography package is required for CSR generation",
+        })
+
+    key = generate_private_key()
+    csr_pem = _generate_csr(
+        key=key,
+        common_name=common_name,
+        organization=organization,
+        organizational_unit=organizational_unit,
+        country=country,
+        serial_number=serial_number,
+        invoice_type=invoice_type,
+        location=location,
+        industry=industry,
+    )
+    private_key_pem = serialize_private_key(key)
+
+    return json.dumps({
+        "csr_pem": csr_pem.decode("utf-8"),
+        "private_key_pem": private_key_pem.decode("utf-8"),
+        "warning": "Store the private key securely. It cannot be recovered.",
+        "next_step": "Submit the CSR to ZATCA to obtain a compliance certificate",
+    }, indent=2)
+
+
+# ═══════════════════════════════════════════════════
+# TOOL 6: Invoice Signing (Phase 2)
+# ═══════════════════════════════════════════════════
+
+@mcp.tool()
+async def sign_invoice(
+    invoice_xml: str,
+    certificate_pem: str,
+    private_key_pem: str,
+) -> str:
+    """Digitally sign a ZATCA invoice with XAdES-BES.
+
+    Takes an unsigned invoice XML and applies a digital signature using
+    the provided certificate and private key. Produces a signed XML with
+    embedded XAdES-BES signature in UBLExtensions, and rebuilds the QR
+    code with Phase 2 tags (hash, signature, public key).
+
+    Args:
+        invoice_xml: Unsigned UBL 2.1 XML invoice string
+        certificate_pem: PEM-encoded X.509 certificate from ZATCA
+        private_key_pem: PEM-encoded ECDSA private key
+
+    Returns:
+        JSON with signed_xml, invoice_hash, qr_base64, and compliance status
+    """
+    try:
+        from zatca_mcp.utils.signing import (
+            inject_signature,
+            hash_invoice,
+            load_private_key,
+            sign_hash as _sign_hash,
+            get_public_key_bytes,
+        )
+    except ImportError:
+        return json.dumps({
+            "error": "Phase 2 dependencies not installed",
+            "fix": "pip install zatca-mcp[phase2]",
+            "details": "The cryptography package is required for invoice signing",
+        })
+
+    import base64
+    import hashlib
+
+    try:
+        key = load_private_key(private_key_pem.encode("utf-8"))
+    except Exception as e:
+        return json.dumps({"error": f"Failed to load private key: {str(e)}"})
+
+    xml_bytes = invoice_xml.encode("utf-8")
+
+    # Hash the invoice
+    invoice_hash = hash_invoice(xml_bytes)
+
+    # Sign the invoice (inject XAdES-BES)
+    try:
+        signed_xml_bytes = inject_signature(xml_bytes, certificate_pem, key)
+    except Exception as e:
+        return json.dumps({"error": f"Signing failed: {str(e)}"})
+
+    # Get signature and public key for QR TLV tags 6-8
+    hash_bytes = base64.b64decode(invoice_hash)
+    signature_bytes = _sign_hash(key, hash_bytes)
+    pub_key_bytes = get_public_key_bytes(key)
+
+    # Rebuild QR with Phase 2 tags
+    from lxml import etree
+    root = etree.fromstring(signed_xml_bytes)
+    ns = {
+        "cac": "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2",
+        "cbc": "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2",
+    }
+
+    # Extract existing QR data to get seller info
+    qr_els = root.xpath(
+        "//cac:AdditionalDocumentReference[cbc:ID='QR']"
+        "//cbc:EmbeddedDocumentBinaryObject",
+        namespaces=ns,
+    )
+
+    qr_base64 = ""
+    if qr_els and qr_els[0].text:
+        # Decode existing QR, add Phase 2 tags, re-encode
+        existing_qr = qr_els[0].text
+        decoded = decode_tlv_named(existing_qr)
+        new_qr = encode_tlv(
+            seller_name=decoded.get("seller_name", ""),
+            vat_number=decoded.get("vat_number", ""),
+            timestamp=decoded.get("timestamp", ""),
+            total_amount=decoded.get("total_amount", ""),
+            vat_amount=decoded.get("vat_amount", ""),
+            invoice_hash=invoice_hash,
+            ecdsa_signature=base64.b64encode(signature_bytes).decode("ascii"),
+            ecdsa_public_key=base64.b64encode(pub_key_bytes).decode("ascii"),
+        )
+        qr_base64 = new_qr
+        # Update the QR in the signed XML
+        qr_els[0].text = new_qr
+        signed_xml_bytes = etree.tostring(
+            root, pretty_print=True, xml_declaration=True, encoding="UTF-8",
+        )
+
+    return json.dumps({
+        "signed_xml": signed_xml_bytes.decode("utf-8"),
+        "invoice_hash": invoice_hash,
+        "qr_base64": qr_base64,
+        "is_phase2_compliant": True,
+    }, indent=2, ensure_ascii=False)
+
+
+# ═══════════════════════════════════════════════════
+# TOOL 7: Invoice Submission (Phase 2)
+# ═══════════════════════════════════════════════════
+
+@mcp.tool()
+async def submit_invoice(
+    signed_invoice_xml: str,
+    invoice_hash: str,
+    invoice_uuid: str,
+    certificate: str,
+    secret: str,
+    mode: str = "reporting",
+    environment: str = "sandbox",
+) -> str:
+    """Submit a signed invoice to ZATCA for reporting or clearance.
+
+    Sends the signed invoice to ZATCA's Fatoora API. Use "reporting" mode
+    for simplified invoices (B2C) and "clearance" mode for standard
+    invoices (B2B).
+
+    Args:
+        signed_invoice_xml: Signed UBL 2.1 XML invoice string
+        invoice_hash: Base64-encoded SHA-256 hash of the invoice
+        invoice_uuid: Invoice UUID
+        certificate: Base64-encoded compliance/production certificate
+        secret: API secret from ZATCA
+        mode: "reporting" (simplified) or "clearance" (standard)
+        environment: "sandbox" or "production"
+
+    Returns:
+        JSON with ZATCA's response (status, validation results)
+    """
+    try:
+        from zatca_mcp.api.client import ZATCAClient
+    except ImportError:
+        return json.dumps({
+            "error": "Phase 2 dependencies not installed",
+            "fix": "pip install zatca-mcp[phase2]",
+            "details": "httpx and pydantic are required for ZATCA API integration",
+        })
+
+    import base64
+
+    client = ZATCAClient(
+        certificate=certificate,
+        secret=secret,
+        environment=environment,
+    )
+
+    xml_b64 = base64.b64encode(
+        signed_invoice_xml.encode("utf-8")
+    ).decode("ascii")
+
+    try:
+        if mode == "clearance":
+            result = await client.clear_invoice(xml_b64, invoice_hash, invoice_uuid)
+        else:
+            result = await client.report_invoice(xml_b64, invoice_hash, invoice_uuid)
+
+        return json.dumps(result.model_dump(), indent=2, ensure_ascii=False)
+
+    except Exception as e:
+        return json.dumps({"error": f"ZATCA API request failed: {str(e)}"})
+
+
+# ═══════════════════════════════════════════════════
+# TOOL 8: Compliance Check (Phase 2)
+# ═══════════════════════════════════════════════════
+
+@mcp.tool()
+async def check_compliance(
+    signed_invoice_xml: str,
+    invoice_hash: str,
+    invoice_uuid: str,
+    certificate: str,
+    secret: str,
+    environment: str = "sandbox",
+) -> str:
+    """Check a signed invoice against ZATCA compliance rules.
+
+    Validates the invoice with ZATCA's server-side checks before
+    actual submission. Useful for testing compliance without affecting
+    production records.
+
+    Args:
+        signed_invoice_xml: Signed UBL 2.1 XML invoice string
+        invoice_hash: Base64-encoded SHA-256 hash of the invoice
+        invoice_uuid: Invoice UUID
+        certificate: Base64-encoded compliance certificate
+        secret: API secret from ZATCA
+        environment: "sandbox" or "production"
+
+    Returns:
+        JSON with ZATCA validation results
+    """
+    try:
+        from zatca_mcp.api.client import ZATCAClient
+    except ImportError:
+        return json.dumps({
+            "error": "Phase 2 dependencies not installed",
+            "fix": "pip install zatca-mcp[phase2]",
+            "details": "httpx and pydantic are required for ZATCA API integration",
+        })
+
+    import base64
+
+    client = ZATCAClient(
+        certificate=certificate,
+        secret=secret,
+        environment=environment,
+    )
+
+    xml_b64 = base64.b64encode(
+        signed_invoice_xml.encode("utf-8")
+    ).decode("ascii")
+
+    try:
+        result = await client.check_compliance(xml_b64, invoice_hash, invoice_uuid)
+        return json.dumps(result.model_dump(), indent=2, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"error": f"ZATCA compliance check failed: {str(e)}"})
 
 
 def main():
