@@ -13,3 +13,5 @@ venv/
 .mypy_cache/
 .DS_Store
 invoices/
+ZATCA_MCP_PRD_v1.0.docx
+zatca-mcp-system-design.html
