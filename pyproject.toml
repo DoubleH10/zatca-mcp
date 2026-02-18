@@ -45,6 +45,7 @@ dev = [
 
 [project.scripts]
 zatca-mcp = "zatca_mcp.server:main"
+fikra = "zatca_mcp.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/DoubleH10/zatca-mcp"

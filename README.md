@@ -121,10 +121,8 @@ Restart Claude Desktop. You can now ask Claude to generate ZATCA-compliant invoi
 
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-..."
-git clone https://github.com/DoubleH10/zatca-mcp.git
-cd zatca-mcp
-pip install -e ".[dev]"
-python examples/fikrah_agent.py
+pip install zatca-mcp[phase2]
+fikra                              # works from any directory
 ```
 
 ## Fikra CLI
@@ -446,6 +444,7 @@ csr_pem = generate_csr(
 zatca-mcp/
 ├── src/zatca_mcp/
 │   ├── server.py              # MCP server — 8 tool definitions
+│   ├── cli.py                 # Fikra CLI — global `fikra` command
 │   ├── utils/
 │   │   ├── xml_builder.py     # UBL 2.1 XML invoice generator
 │   │   ├── validation.py      # 16-rule validation engine
@@ -456,7 +455,7 @@ zatca-mcp/
 │       ├── client.py          # ZATCA Fatoora API client (Phase 2)
 │       └── models.py          # Pydantic v2 API models (Phase 2)
 ├── examples/
-│   └── fikrah_agent.py        # Fikra CLI conversational agent
+│   └── fikrah_agent.py        # Legacy entry point (redirects to fikra command)
 ├── tests/
 │   ├── test_invoice.py        # Invoice generation tests
 │   ├── test_tlv.py            # TLV encoding/decoding tests
