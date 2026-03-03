@@ -207,12 +207,16 @@ async def generate_invoice(
     from decimal import ROUND_HALF_UP, Decimal
 
     total_taxable = sum(
-        Decimal(str(i["quantity"])) * Decimal(str(i["unit_price"])) for i in line_items
+        (Decimal(str(i["quantity"])) * Decimal(str(i["unit_price"])) for i in line_items),
+        Decimal("0"),
     )
     total_vat = sum(
-        (Decimal(str(i["quantity"])) * Decimal(str(i["unit_price"])))
-        * Decimal(str(i.get("vat_rate", "0.15")))
-        for i in line_items
+        (
+            (Decimal(str(i["quantity"])) * Decimal(str(i["unit_price"])))
+            * Decimal(str(i.get("vat_rate", "0.15")))
+            for i in line_items
+        ),
+        Decimal("0"),
     )
     total_with_vat = (total_taxable + total_vat).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     total_vat_rounded = total_vat.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
@@ -463,9 +467,9 @@ async def sign_invoice(
     )
 
     qr_base64 = ""
-    if qr_els and qr_els[0].text:
+    if qr_els and qr_els[0].text:  # type: ignore[index,union-attr]
         # Decode existing QR, add Phase 2 tags, re-encode
-        existing_qr = qr_els[0].text
+        existing_qr = qr_els[0].text  # type: ignore[index,union-attr]
         decoded = decode_tlv_named(existing_qr)
         new_qr = encode_tlv(
             seller_name=decoded.get("seller_name", ""),
@@ -479,7 +483,7 @@ async def sign_invoice(
         )
         qr_base64 = new_qr
         # Update the QR in the signed XML
-        qr_els[0].text = new_qr
+        qr_els[0].text = new_qr  # type: ignore[index,union-attr]
         signed_xml_bytes = etree.tostring(
             root,
             pretty_print=True,

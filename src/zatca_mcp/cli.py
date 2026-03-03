@@ -302,8 +302,8 @@ TOOLS = [
 def _xpath_text(root, xpath):
     """Extract text from first matching XPath element."""
     result = root.xpath(xpath, namespaces=NS)
-    if result and hasattr(result[0], "text"):
-        return result[0].text
+    if result and hasattr(result[0], "text"):  # type: ignore[index]
+        return result[0].text  # type: ignore[index,union-attr]
     return None
 
 
@@ -323,7 +323,7 @@ def parse_invoice_xml(xml_string: str) -> dict:
     type_code_el = root.xpath("//cbc:InvoiceTypeCode", namespaces=NS)
     invoice_type_name = "Tax Invoice"
     if type_code_el:
-        subtype = type_code_el[0].get("name", "")
+        subtype = type_code_el[0].get("name", "")  # type: ignore[index,union-attr]
         if subtype.startswith("02"):
             invoice_type_name = "Simplified Tax Invoice"
 
@@ -398,12 +398,12 @@ def parse_invoice_xml(xml_string: str) -> dict:
         "//cac:AdditionalDocumentReference[cbc:ID='QR']/cac:Attachment/cbc:EmbeddedDocumentBinaryObject",
         namespaces=NS,
     )
-    if qr_els and qr_els[0].text:
-        qr_data = qr_els[0].text
+    if qr_els and qr_els[0].text:  # type: ignore[index,union-attr]
+        qr_data = qr_els[0].text  # type: ignore[index,union-attr]
 
     # Line items
     items = []
-    for line in root.xpath("//cac:InvoiceLine", namespaces=NS):
+    for line in root.xpath("//cac:InvoiceLine", namespaces=NS):  # type: ignore[union-attr]
         line_id = _xpath_text(line, "cbc:ID") or ""
         name = _xpath_text(line, "cac:Item/cbc:Name") or ""
         qty = _xpath_text(line, "cbc:InvoicedQuantity") or "0"
@@ -803,12 +803,16 @@ def execute_tool(name: str, args: dict) -> str:
 
             # Generate QR
             total_taxable = sum(
-                Decimal(str(i["quantity"])) * Decimal(str(i["unit_price"])) for i in items
+                (Decimal(str(i["quantity"])) * Decimal(str(i["unit_price"])) for i in items),
+                Decimal("0"),
             )
             total_vat = sum(
-                (Decimal(str(i["quantity"])) * Decimal(str(i["unit_price"])))
-                * Decimal(str(i.get("vat_rate", "0.15")))
-                for i in items
+                (
+                    (Decimal(str(i["quantity"])) * Decimal(str(i["unit_price"])))
+                    * Decimal(str(i.get("vat_rate", "0.15")))
+                    for i in items
+                ),
+                Decimal("0"),
             )
             total = (total_taxable + total_vat).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
             vat_rounded = total_vat.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)

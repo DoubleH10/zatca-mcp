@@ -25,8 +25,8 @@ NS = {
 def _xpath_text(root: etree._Element, xpath: str) -> str | None:
     """Extract text from first matching XPath element."""
     result = root.xpath(xpath, namespaces=NS)
-    if result and hasattr(result[0], "text"):
-        return result[0].text
+    if result and hasattr(result[0], "text"):  # type: ignore[index]
+        return result[0].text  # type: ignore[index,union-attr]
     return None
 
 
@@ -124,7 +124,7 @@ def validate_invoice_xml(xml_string: str) -> dict:
 
     # BR-08: Check invoice type for buyer VAT requirement
     subtype = root.xpath("//cbc:InvoiceTypeCode/@name", namespaces=NS)
-    if subtype and subtype[0].startswith("01"):  # Standard invoice
+    if subtype and subtype[0].startswith("01"):  # type: ignore[index,union-attr,arg-type]  # Standard invoice
         buyer_vat = _xpath_text(
             root,
             "//cac:AccountingCustomerParty/cac:Party/cac:PartyTaxScheme/cbc:CompanyID",
@@ -138,15 +138,15 @@ def validate_invoice_xml(xml_string: str) -> dict:
         errors.append("BR-10: Invoice must have at least one line item")
 
     # BR-11: Validate math on line items
-    for idx, line in enumerate(lines, start=1):
-        qty_text = _xpath_text(line, "cbc:InvoicedQuantity")
-        price_text = line.xpath("cac:Price/cbc:PriceAmount/text()", namespaces=NS)
-        ext_text = _xpath_text(line, "cbc:LineExtensionAmount")
+    for idx, line in enumerate(lines, start=1):  # type: ignore[arg-type]
+        qty_text = _xpath_text(line, "cbc:InvoicedQuantity")  # type: ignore[arg-type]
+        price_text = line.xpath("cac:Price/cbc:PriceAmount/text()", namespaces=NS)  # type: ignore[union-attr]
+        ext_text = _xpath_text(line, "cbc:LineExtensionAmount")  # type: ignore[arg-type]
 
         if qty_text and price_text and ext_text:
             try:
                 qty = Decimal(qty_text)
-                price = Decimal(price_text[0])
+                price = Decimal(price_text[0])  # type: ignore[index,arg-type]
                 ext = Decimal(ext_text)
                 expected = (qty * price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
                 if abs(expected - ext) > Decimal("0.01"):
@@ -189,7 +189,7 @@ def validate_invoice_xml(xml_string: str) -> dict:
             "//cac:BillingReference/cac:InvoiceDocumentReference/cbc:ID",
             namespaces=NS,
         )
-        if not billing_ref or not billing_ref[0].text:
+        if not billing_ref or not billing_ref[0].text:  # type: ignore[index,union-attr]
             errors.append(
                 "BR-15: Credit/Debit notes must have a BillingReference with original invoice ID"
             )

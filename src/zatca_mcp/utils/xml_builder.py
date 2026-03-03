@@ -148,7 +148,7 @@ def build_invoice_xml(
     """
     # Create root element with namespaces
     nsmap = {None: NS[""], "cac": NS["cac"], "cbc": NS["cbc"], "ext": NS["ext"]}
-    root = etree.Element(_qn("", "Invoice"), nsmap=nsmap)
+    root = etree.Element(_qn("", "Invoice"), nsmap=nsmap)  # type: ignore[arg-type]
 
     # Profile ID
     _add_text_element(root, "cbc", "ProfileID", "reporting:1.0")
