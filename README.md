@@ -516,7 +516,7 @@ mcp dev src/zatca_mcp/server.py
 
 | Project | Description |
 |---------|-------------|
-| [Fikrah](https://fikrah.ai) | Agentic AI workforce for financial operations — uses this server as its ZATCA compliance backbone |
+| [Fikrah](https://fikrah.bloq-ai.net/landing) | Agentic AI workforce for financial operations — uses this server as its ZATCA compliance backbone |
 
 > Using zatca-mcp in your project? Open a PR to add it here.
 
