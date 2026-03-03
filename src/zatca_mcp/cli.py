@@ -11,39 +11,41 @@ Usage:
     fikra
 """
 
-import anthropic
-import json
-import sys
-import os
-import io
 import base64
+import io
+import json
+import os
+import sys
 import webbrowser
-from pathlib import Path
 from datetime import datetime, timezone
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
+from pathlib import Path
 
+import anthropic
+import qrcode
+from lxml import etree
 from rich.console import Console
 from rich.theme import Theme
-from lxml import etree
-import qrcode
 
-from zatca_mcp.utils.tlv import encode_tlv, decode_tlv_named
-from zatca_mcp.utils.xml_builder import build_invoice_xml
+from zatca_mcp.utils.tlv import decode_tlv_named, encode_tlv
 from zatca_mcp.utils.validation import validate_invoice_xml, validate_vat_number
+from zatca_mcp.utils.xml_builder import build_invoice_xml
 
 # ═══════════════════════════════════════════════════
 # Theme & Console
 # ═══════════════════════════════════════════════════
 
-FIKRA_THEME = Theme({
-    "fikra.brand": "bold #c8e64a",
-    "fikra.accent": "#c8e64a",
-    "fikra.dim": "#6b7c6e",
-    "fikra.tool": "dim",
-    "fikra.error": "bold red",
-    "fikra.warn": "bold yellow",
-    "fikra.success": "bold #c8e64a",
-})
+FIKRA_THEME = Theme(
+    {
+        "fikra.brand": "bold #c8e64a",
+        "fikra.accent": "#c8e64a",
+        "fikra.dim": "#6b7c6e",
+        "fikra.tool": "dim",
+        "fikra.error": "bold red",
+        "fikra.warn": "bold yellow",
+        "fikra.success": "bold #c8e64a",
+    }
+)
 
 console = Console(theme=FIKRA_THEME)
 
@@ -112,7 +114,9 @@ TOOLS = [
                 "invoice_type": {
                     "type": "string",
                     "enum": ["standard", "simplified"],
-                    "description": "'standard' for B2B (requires buyer VAT) or 'simplified' for B2C",
+                    "description": (
+                        "'standard' for B2B (requires buyer VAT) or 'simplified' for B2C"
+                    ),
                 },
                 "invoice_number": {
                     "type": "string",
@@ -138,7 +142,9 @@ TOOLS = [
                 "buyer_city": {"type": "string", "default": ""},
                 "items": {
                     "type": "string",
-                    "description": 'JSON array: [{"name": "...", "quantity": 1, "unit_price": 100.00}]',
+                    "description": (
+                        'JSON array: [{"name": "...", "quantity": 1, "unit_price": 100.00}]'
+                    ),
                 },
                 "currency": {"type": "string", "default": "SAR"},
                 "note": {"type": "string"},
@@ -230,9 +236,7 @@ TOOLS = [
     },
     {
         "name": "submit_invoice",
-        "description": (
-            "Submit a signed invoice to ZATCA for reporting or clearance."
-        ),
+        "description": ("Submit a signed invoice to ZATCA for reporting or clearance."),
         "input_schema": {
             "type": "object",
             "properties": {
@@ -294,6 +298,7 @@ TOOLS = [
 # XML → HTML Invoice Pipeline
 # ═══════════════════════════════════════════════════
 
+
 def _xpath_text(root, xpath):
     """Extract text from first matching XPath element."""
     result = root.xpath(xpath, namespaces=NS)
@@ -323,40 +328,64 @@ def parse_invoice_xml(xml_string: str) -> dict:
             invoice_type_name = "Simplified Tax Invoice"
 
     # Seller
-    seller_name = _xpath_text(
-        root,
-        "//cac:AccountingSupplierParty/cac:Party/cac:PartyLegalEntity/cbc:RegistrationName",
-    ) or ""
-    seller_vat = _xpath_text(
-        root,
-        "//cac:AccountingSupplierParty/cac:Party/cac:PartyTaxScheme/cbc:CompanyID",
-    ) or ""
-    seller_address = _xpath_text(
-        root,
-        "//cac:AccountingSupplierParty/cac:Party/cac:PostalAddress/cbc:StreetName",
-    ) or ""
-    seller_city = _xpath_text(
-        root,
-        "//cac:AccountingSupplierParty/cac:Party/cac:PostalAddress/cbc:CityName",
-    ) or ""
+    seller_name = (
+        _xpath_text(
+            root,
+            "//cac:AccountingSupplierParty/cac:Party/cac:PartyLegalEntity/cbc:RegistrationName",
+        )
+        or ""
+    )
+    seller_vat = (
+        _xpath_text(
+            root,
+            "//cac:AccountingSupplierParty/cac:Party/cac:PartyTaxScheme/cbc:CompanyID",
+        )
+        or ""
+    )
+    seller_address = (
+        _xpath_text(
+            root,
+            "//cac:AccountingSupplierParty/cac:Party/cac:PostalAddress/cbc:StreetName",
+        )
+        or ""
+    )
+    seller_city = (
+        _xpath_text(
+            root,
+            "//cac:AccountingSupplierParty/cac:Party/cac:PostalAddress/cbc:CityName",
+        )
+        or ""
+    )
 
     # Buyer
-    buyer_name = _xpath_text(
-        root,
-        "//cac:AccountingCustomerParty/cac:Party/cac:PartyLegalEntity/cbc:RegistrationName",
-    ) or ""
-    buyer_vat = _xpath_text(
-        root,
-        "//cac:AccountingCustomerParty/cac:Party/cac:PartyTaxScheme/cbc:CompanyID",
-    ) or ""
-    buyer_address = _xpath_text(
-        root,
-        "//cac:AccountingCustomerParty/cac:Party/cac:PostalAddress/cbc:StreetName",
-    ) or ""
-    buyer_city = _xpath_text(
-        root,
-        "//cac:AccountingCustomerParty/cac:Party/cac:PostalAddress/cbc:CityName",
-    ) or ""
+    buyer_name = (
+        _xpath_text(
+            root,
+            "//cac:AccountingCustomerParty/cac:Party/cac:PartyLegalEntity/cbc:RegistrationName",
+        )
+        or ""
+    )
+    buyer_vat = (
+        _xpath_text(
+            root,
+            "//cac:AccountingCustomerParty/cac:Party/cac:PartyTaxScheme/cbc:CompanyID",
+        )
+        or ""
+    )
+    buyer_address = (
+        _xpath_text(
+            root,
+            "//cac:AccountingCustomerParty/cac:Party/cac:PostalAddress/cbc:StreetName",
+        )
+        or ""
+    )
+    buyer_city = (
+        _xpath_text(
+            root,
+            "//cac:AccountingCustomerParty/cac:Party/cac:PostalAddress/cbc:CityName",
+        )
+        or ""
+    )
 
     # Totals
     subtotal = _xpath_text(root, "//cac:LegalMonetaryTotal/cbc:TaxExclusiveAmount") or "0.00"
@@ -383,15 +412,17 @@ def parse_invoice_xml(xml_string: str) -> dict:
         line_vat = _xpath_text(line, "cac:TaxTotal/cbc:TaxAmount") or "0.00"
         vat_pct = _xpath_text(line, "cac:Item/cac:ClassifiedTaxCategory/cbc:Percent") or "15"
         line_total_val = Decimal(line_ext) + Decimal(line_vat)
-        items.append({
-            "id": line_id,
-            "name": name,
-            "quantity": qty,
-            "unit_price": unit_price,
-            "vat_percent": vat_pct,
-            "vat_amount": line_vat,
-            "line_total": str(line_total_val.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
-        })
+        items.append(
+            {
+                "id": line_id,
+                "name": name,
+                "quantity": qty,
+                "unit_price": unit_price,
+                "vat_percent": vat_pct,
+                "vat_amount": line_vat,
+                "line_total": str(line_total_val.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            }
+        )
 
     return {
         "invoice_number": invoice_number,
@@ -419,7 +450,12 @@ def parse_invoice_xml(xml_string: str) -> dict:
 
 def generate_qr_image_base64(tlv_base64: str) -> str:
     """Generate a QR code PNG image from TLV base64 data, returned as a data URI."""
-    qr = qrcode.QRCode(version=None, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=6, border=2)
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=6,
+        border=2,
+    )
     qr.add_data(tlv_base64)
     qr.make(fit=True)
     img = qr.make_image(fill_color="black", back_color="white")
@@ -439,7 +475,8 @@ HTML_TEMPLATE = """\
 <style>
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+      Roboto, "Helvetica Neue", Arial, sans-serif;
     color: #1a1a1a;
     background: #f5f5f5;
     padding: 24px;
@@ -678,10 +715,10 @@ def generate_html_invoice(xml_string: str) -> str:
     rows = []
     for item in data["items"]:
         rows.append(
-            f'        <tr><td>{item["id"]}</td><td>{item["name"]}</td>'
-            f'<td>{item["quantity"]}</td><td>{item["unit_price"]}</td>'
-            f'<td>{item["vat_percent"]}%</td><td>{item["vat_amount"]}</td>'
-            f'<td>{item["line_total"]}</td></tr>'
+            f"        <tr><td>{item['id']}</td><td>{item['name']}</td>"
+            f"<td>{item['quantity']}</td><td>{item['unit_price']}</td>"
+            f"<td>{item['vat_percent']}%</td><td>{item['vat_amount']}</td>"
+            f"<td>{item['line_total']}</td></tr>"
         )
 
     # QR image
@@ -766,20 +803,15 @@ def execute_tool(name: str, args: dict) -> str:
 
             # Generate QR
             total_taxable = sum(
-                Decimal(str(i["quantity"])) * Decimal(str(i["unit_price"]))
-                for i in items
+                Decimal(str(i["quantity"])) * Decimal(str(i["unit_price"])) for i in items
             )
             total_vat = sum(
                 (Decimal(str(i["quantity"])) * Decimal(str(i["unit_price"])))
                 * Decimal(str(i.get("vat_rate", "0.15")))
                 for i in items
             )
-            total = (total_taxable + total_vat).quantize(
-                Decimal("0.01"), rounding=ROUND_HALF_UP
-            )
-            vat_rounded = total_vat.quantize(
-                Decimal("0.01"), rounding=ROUND_HALF_UP
-            )
+            total = (total_taxable + total_vat).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            vat_rounded = total_vat.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
             ts = f"{args['issue_date']}T{datetime.now(timezone.utc).strftime('%H:%M:%S')}Z"
             qr = encode_tlv(
@@ -812,7 +844,7 @@ def execute_tool(name: str, args: dict) -> str:
             try:
                 html = generate_html_invoice(xml)
                 filepath = save_and_open_invoice(html, args["invoice_number"])
-                console.print(f"\n  [fikra.success]✓ Invoice saved & opened in browser[/]")
+                console.print("\n  [fikra.success]✓ Invoice saved & opened in browser[/]")
                 console.print(f"  [fikra.dim]{filepath}[/]")
             except Exception as e:
                 console.print(f"  [fikra.warn]Warning: HTML invoice generation failed: {e}[/]")
@@ -830,15 +862,19 @@ def execute_tool(name: str, args: dict) -> str:
         elif name == "generate_csr":
             try:
                 from zatca_mcp.utils.signing import (
-                    generate_private_key,
-                    serialize_private_key,
                     generate_csr as _gen_csr,
                 )
+                from zatca_mcp.utils.signing import (
+                    generate_private_key,
+                    serialize_private_key,
+                )
             except ImportError:
-                return json.dumps({
-                    "error": "Phase 2 deps not installed",
-                    "fix": "pip install zatca-mcp[phase2]",
-                })
+                return json.dumps(
+                    {
+                        "error": "Phase 2 deps not installed",
+                        "fix": "pip install zatca-mcp[phase2]",
+                    }
+                )
             key = generate_private_key()
             csr_pem = _gen_csr(
                 key=key,
@@ -855,46 +891,59 @@ def execute_tool(name: str, args: dict) -> str:
                 industry=args.get("industry", "IT"),
             )
             pk_pem = serialize_private_key(key)
-            return json.dumps({
-                "csr_pem": csr_pem.decode("utf-8"),
-                "private_key_pem": pk_pem.decode("utf-8"),
-                "warning": "Store the private key securely.",
-                "next_step": "Submit CSR to ZATCA to get compliance certificate",
-            }, indent=2)
+            return json.dumps(
+                {
+                    "csr_pem": csr_pem.decode("utf-8"),
+                    "private_key_pem": pk_pem.decode("utf-8"),
+                    "warning": "Store the private key securely.",
+                    "next_step": "Submit CSR to ZATCA to get compliance certificate",
+                },
+                indent=2,
+            )
 
         elif name == "sign_invoice":
             try:
                 from zatca_mcp.utils.signing import (
-                    inject_signature,
                     hash_invoice,
+                    inject_signature,
                     load_private_key,
                 )
             except ImportError:
-                return json.dumps({
-                    "error": "Phase 2 deps not installed",
-                    "fix": "pip install zatca-mcp[phase2]",
-                })
+                return json.dumps(
+                    {
+                        "error": "Phase 2 deps not installed",
+                        "fix": "pip install zatca-mcp[phase2]",
+                    }
+                )
             key = load_private_key(args["private_key_pem"].encode("utf-8"))
             xml_bytes = args["invoice_xml"].encode("utf-8")
             inv_hash = hash_invoice(xml_bytes)
             signed = inject_signature(xml_bytes, args["certificate_pem"], key)
-            return json.dumps({
-                "signed_xml": signed.decode("utf-8"),
-                "invoice_hash": inv_hash,
-                "is_phase2_compliant": True,
-            }, indent=2, ensure_ascii=False)
+            return json.dumps(
+                {
+                    "signed_xml": signed.decode("utf-8"),
+                    "invoice_hash": inv_hash,
+                    "is_phase2_compliant": True,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
 
         elif name == "submit_invoice":
-            return json.dumps({
-                "error": "submit_invoice requires async ZATCA API. Use the MCP server.",
-                "hint": "Run zatca-mcp server and call submit_invoice through MCP.",
-            })
+            return json.dumps(
+                {
+                    "error": "submit_invoice requires async ZATCA API. Use the MCP server.",
+                    "hint": "Run zatca-mcp server and call submit_invoice through MCP.",
+                }
+            )
 
         elif name == "check_compliance":
-            return json.dumps({
-                "error": "check_compliance requires async ZATCA API. Use the MCP server.",
-                "hint": "Run zatca-mcp server and call check_compliance through MCP.",
-            })
+            return json.dumps(
+                {
+                    "error": "check_compliance requires async ZATCA API. Use the MCP server.",
+                    "hint": "Run zatca-mcp server and call check_compliance through MCP.",
+                }
+            )
 
         else:
             return json.dumps({"error": f"Unknown tool: {name}"})
@@ -907,9 +956,14 @@ def execute_tool(name: str, args: dict) -> str:
 # System Prompt
 # ═══════════════════════════════════════════════════
 
-SYSTEM_PROMPT = """You are Fikrah, an AI financial operations assistant specialized in Saudi Arabian e-invoicing compliance.
+SYSTEM_PROMPT = """\
+You are Fikrah, an AI financial operations assistant \
+specialized in Saudi Arabian e-invoicing compliance.
 
-Your role is to help businesses create ZATCA-compliant electronic invoices through natural conversation. When a user tells you about a deal, sale, or transaction, you should:
+Your role is to help businesses create ZATCA-compliant \
+electronic invoices through natural conversation. \
+When a user tells you about a deal, sale, or transaction, \
+you should:
 
 1. GATHER the necessary information conversationally:
    - Ask for missing details one or two at a time, not all at once
@@ -952,7 +1006,8 @@ Your role is to help businesses create ZATCA-compliant electronic invoices throu
    - If validation fails, fix and regenerate
 
 7. HTML INVOICE:
-   - When you generate an invoice XML, a professional HTML invoice is automatically created and opened in the user's browser with a QR code image
+   - When you generate an invoice XML, a professional HTML invoice is automatically \
+created and opened in the user's browser with a QR code image
    - Mention this to the user so they know a visual invoice was generated
 
 You have access to these ZATCA tools:
@@ -993,6 +1048,7 @@ def _check_phase2():
         import cryptography  # noqa: F401
         import httpx  # noqa: F401
         import pydantic  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -1011,13 +1067,14 @@ def print_banner():
     console.print(
         '  [fikra.dim]Tips: "I sold 10 laptops at 3000 SAR each to TechCo" to get started[/]'
     )
-    console.print(
-        "  [fikra.dim]      /help for commands, /quit to exit[/]"
-    )
+    console.print("  [fikra.dim]      /help for commands, /quit to exit[/]")
 
 
 def _stream_response(client, messages):
-    """Stream a Claude response, printing text in real-time. Returns the final Message or None on error."""
+    """Stream a Claude response, printing text in real-time.
+
+    Returns the final Message or None on error.
+    """
     try:
         with client.messages.stream(
             model=MODEL_NAME,
@@ -1128,11 +1185,13 @@ def main():
                 if block.type == "tool_use":
                     console.print(f"  [dim]⏺ {block.name}[/]")
                     result = execute_tool(block.name, block.input)
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result,
-                    })
+                    tool_results.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": result,
+                        }
+                    )
 
             messages.append({"role": "user", "content": tool_results})
 

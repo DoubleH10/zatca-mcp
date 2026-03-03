@@ -15,7 +15,6 @@ from __future__ import annotations
 import base64
 from dataclasses import dataclass
 
-
 TAG_NAMES = {
     1: "seller_name",
     2: "vat_number",
@@ -40,9 +39,7 @@ class TLVTag:
         """Encode this tag as TLV bytes."""
         value_bytes = self.value.encode("utf-8")
         if len(value_bytes) > 255:
-            raise ValueError(
-                f"Tag {self.tag} value too long: {len(value_bytes)} bytes (max 255)"
-            )
+            raise ValueError(f"Tag {self.tag} value too long: {len(value_bytes)} bytes (max 255)")
         if self.tag < 1 or self.tag > 9:
             raise ValueError(f"Invalid tag number: {self.tag} (must be 1-9)")
         return bytes([self.tag, len(value_bytes)]) + value_bytes
@@ -114,8 +111,7 @@ def decode_tlv(base64_string: str) -> dict[int, str]:
         length = data[i + 1]
         if i + 2 + length > len(data):
             raise ValueError(
-                f"Tag {tag} claims length {length} but only "
-                f"{len(data) - i - 2} bytes remain"
+                f"Tag {tag} claims length {length} but only {len(data) - i - 2} bytes remain"
             )
         value = data[i + 2 : i + 2 + length].decode("utf-8")
         result[tag] = value

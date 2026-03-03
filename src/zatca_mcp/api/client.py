@@ -18,12 +18,8 @@ from zatca_mcp.api.models import (
     InvoiceSubmissionResponse,
 )
 
-SANDBOX_BASE_URL = (
-    "https://gw-fatoora.zatca.gov.sa/e-invoicing/developer-portal"
-)
-PRODUCTION_BASE_URL = (
-    "https://gw-fatoora.zatca.gov.sa/e-invoicing/core"
-)
+SANDBOX_BASE_URL = "https://gw-fatoora.zatca.gov.sa/e-invoicing/developer-portal"
+PRODUCTION_BASE_URL = "https://gw-fatoora.zatca.gov.sa/e-invoicing/core"
 
 COMMON_HEADERS = {
     "Content-Type": "application/json",
@@ -52,9 +48,7 @@ class ZATCAClient:
         """
         self.certificate = certificate
         self.secret = secret
-        self.base_url = (
-            SANDBOX_BASE_URL if environment == "sandbox" else PRODUCTION_BASE_URL
-        )
+        self.base_url = SANDBOX_BASE_URL if environment == "sandbox" else PRODUCTION_BASE_URL
 
     def _auth_header(self) -> dict[str, str]:
         """Generate Basic auth header as base64(cert:secret)."""

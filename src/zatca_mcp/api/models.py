@@ -63,6 +63,4 @@ class InvoiceSubmissionResponse(BaseModel):
 class ProductionCSIDRequest(BaseModel):
     """Request to obtain a Production CSID."""
 
-    compliance_request_id: str = Field(
-        description="Request ID from compliance CSID response"
-    )
+    compliance_request_id: str = Field(description="Request ID from compliance CSID response")

@@ -10,9 +10,10 @@ Validates invoices against ZATCA business rules including:
 
 from __future__ import annotations
 
-from lxml import etree
-from decimal import Decimal, ROUND_HALF_UP
 import re
+from decimal import ROUND_HALF_UP, Decimal
+
+from lxml import etree
 
 NS = {
     "ubl": "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2",
@@ -129,9 +130,7 @@ def validate_invoice_xml(xml_string: str) -> dict:
             "//cac:AccountingCustomerParty/cac:Party/cac:PartyTaxScheme/cbc:CompanyID",
         )
         if not buyer_vat:
-            errors.append(
-                "BR-08: Buyer VAT number is mandatory for standard (B2B) invoices"
-            )
+            errors.append("BR-08: Buyer VAT number is mandatory for standard (B2B) invoices")
 
     # BR-10: At least one invoice line
     lines = root.xpath("//cac:InvoiceLine", namespaces=NS)
@@ -141,9 +140,7 @@ def validate_invoice_xml(xml_string: str) -> dict:
     # BR-11: Validate math on line items
     for idx, line in enumerate(lines, start=1):
         qty_text = _xpath_text(line, "cbc:InvoicedQuantity")
-        price_text = line.xpath(
-            "cac:Price/cbc:PriceAmount/text()", namespaces=NS
-        )
+        price_text = line.xpath("cac:Price/cbc:PriceAmount/text()", namespaces=NS)
         ext_text = _xpath_text(line, "cbc:LineExtensionAmount")
 
         if qty_text and price_text and ext_text:
@@ -151,13 +148,10 @@ def validate_invoice_xml(xml_string: str) -> dict:
                 qty = Decimal(qty_text)
                 price = Decimal(price_text[0])
                 ext = Decimal(ext_text)
-                expected = (qty * price).quantize(
-                    Decimal("0.01"), rounding=ROUND_HALF_UP
-                )
+                expected = (qty * price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
                 if abs(expected - ext) > Decimal("0.01"):
                     errors.append(
-                        f"BR-11: Line {idx} total mismatch: "
-                        f"{qty} x {price} = {expected}, got {ext}"
+                        f"BR-11: Line {idx} total mismatch: {qty} x {price} = {expected}, got {ext}"
                     )
             except (ValueError, ArithmeticError):
                 warnings.append(f"BR-11: Could not validate math on line {idx}")
@@ -168,27 +162,19 @@ def validate_invoice_xml(xml_string: str) -> dict:
         errors.append("BR-12: Tax total is mandatory")
 
     # BR-13: Payable amount exists
-    payable = _xpath_text(
-        root, "//cac:LegalMonetaryTotal/cbc:PayableAmount"
-    )
+    payable = _xpath_text(root, "//cac:LegalMonetaryTotal/cbc:PayableAmount")
     if not payable:
         errors.append("BR-13: Payable amount is mandatory")
 
     # BR-14: Cross-check totals
-    tax_exclusive = _xpath_text(
-        root, "//cac:LegalMonetaryTotal/cbc:TaxExclusiveAmount"
-    )
-    tax_inclusive = _xpath_text(
-        root, "//cac:LegalMonetaryTotal/cbc:TaxInclusiveAmount"
-    )
+    tax_exclusive = _xpath_text(root, "//cac:LegalMonetaryTotal/cbc:TaxExclusiveAmount")
+    tax_inclusive = _xpath_text(root, "//cac:LegalMonetaryTotal/cbc:TaxInclusiveAmount")
     if tax_exclusive and tax_amount_text and tax_inclusive:
         try:
             excl = Decimal(tax_exclusive)
             tax = Decimal(tax_amount_text)
             incl = Decimal(tax_inclusive)
-            expected_incl = (excl + tax).quantize(
-                Decimal("0.01"), rounding=ROUND_HALF_UP
-            )
+            expected_incl = (excl + tax).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
             if abs(expected_incl - incl) > Decimal("0.01"):
                 errors.append(
                     f"BR-14: Tax inclusive amount mismatch: "
@@ -205,8 +191,7 @@ def validate_invoice_xml(xml_string: str) -> dict:
         )
         if not billing_ref or not billing_ref[0].text:
             errors.append(
-                "BR-15: Credit/Debit notes must have a BillingReference "
-                "with original invoice ID"
+                "BR-15: Credit/Debit notes must have a BillingReference with original invoice ID"
             )
 
     # BR-16: Credit/Debit notes should have InstructionNote
@@ -217,8 +202,7 @@ def validate_invoice_xml(xml_string: str) -> dict:
         )
         if not instruction_note:
             warnings.append(
-                "BR-16: Credit/Debit notes should include an InstructionNote "
-                "explaining the reason"
+                "BR-16: Credit/Debit notes should include an InstructionNote explaining the reason"
             )
 
     # Warnings (non-blocking)

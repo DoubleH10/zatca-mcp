@@ -14,8 +14,6 @@ import copy
 import hashlib
 from datetime import datetime, timezone
 
-from lxml import etree
-
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509 import (
@@ -23,8 +21,9 @@ from cryptography.x509 import (
     Name,
     NameAttribute,
 )
-from cryptography.x509.oid import NameOID
 from cryptography.x509.name import _ASN1Type
+from cryptography.x509.oid import NameOID
+from lxml import etree
 
 # UBL / ZATCA namespaces
 NS = {
@@ -113,23 +112,21 @@ def generate_csr(
     Returns:
         PEM-encoded CSR bytes
     """
-    subject = Name([
-        NameAttribute(NameOID.COUNTRY_NAME, country),
-        NameAttribute(NameOID.ORGANIZATION_NAME, organization),
-        NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, organizational_unit),
-        NameAttribute(NameOID.COMMON_NAME, common_name),
-        NameAttribute(NameOID.SERIAL_NUMBER, serial_number, _type=_ASN1Type.UTF8String),
-        NameAttribute(NameOID.USER_ID, invoice_type, _type=_ASN1Type.UTF8String),
-        NameAttribute(NameOID.TITLE, location, _type=_ASN1Type.UTF8String),
-        NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, industry, _type=_ASN1Type.UTF8String),
-        NameAttribute(NameOID.BUSINESS_CATEGORY, industry, _type=_ASN1Type.UTF8String),
-    ])
-
-    csr = (
-        CertificateSigningRequestBuilder()
-        .subject_name(subject)
-        .sign(key, hashes.SHA256())
+    subject = Name(
+        [
+            NameAttribute(NameOID.COUNTRY_NAME, country),
+            NameAttribute(NameOID.ORGANIZATION_NAME, organization),
+            NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, organizational_unit),
+            NameAttribute(NameOID.COMMON_NAME, common_name),
+            NameAttribute(NameOID.SERIAL_NUMBER, serial_number, _type=_ASN1Type.UTF8String),
+            NameAttribute(NameOID.USER_ID, invoice_type, _type=_ASN1Type.UTF8String),
+            NameAttribute(NameOID.TITLE, location, _type=_ASN1Type.UTF8String),
+            NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, industry, _type=_ASN1Type.UTF8String),
+            NameAttribute(NameOID.BUSINESS_CATEGORY, industry, _type=_ASN1Type.UTF8String),
+        ]
     )
+
+    csr = CertificateSigningRequestBuilder().subject_name(subject).sign(key, hashes.SHA256())
     return serialize_csr(csr)
 
 
@@ -246,10 +243,7 @@ def _build_signed_properties(cert_pem: str, signing_time: str) -> etree._Element
 def _pem_to_der(pem_str: str) -> bytes:
     """Extract DER bytes from a PEM certificate string."""
     lines = pem_str.strip().splitlines()
-    b64_lines = [
-        line for line in lines
-        if not line.startswith("-----")
-    ]
+    b64_lines = [line for line in lines if not line.startswith("-----")]
     return base64.b64decode("".join(b64_lines))
 
 
@@ -329,9 +323,7 @@ def inject_signature(
 
     # 3. Digest SignedProperties
     sp_canonical = etree.tostring(signed_props, method="c14n2", exclusive=True)
-    sp_digest = base64.b64encode(
-        hashlib.sha256(sp_canonical).digest()
-    ).decode("ascii")
+    sp_digest = base64.b64encode(hashlib.sha256(sp_canonical).digest()).decode("ascii")
 
     # 4. Build SignedInfo
     signed_info = _build_signed_info(invoice_digest, sp_digest)
@@ -355,9 +347,7 @@ def inject_signature(
     x509_cert = etree.SubElement(x509_data, f"{{{_DS}}}X509Certificate")
     # Strip PEM headers and join lines
     cert_lines = cert_pem.strip().splitlines()
-    cert_b64 = "".join(
-        line for line in cert_lines if not line.startswith("-----")
-    )
+    cert_b64 = "".join(line for line in cert_lines if not line.startswith("-----"))
     x509_cert.text = cert_b64
 
     # QualifyingProperties with SignedProperties

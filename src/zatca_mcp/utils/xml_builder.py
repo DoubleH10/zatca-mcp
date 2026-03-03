@@ -9,10 +9,11 @@ Reference: ZATCA Electronic Invoice XML Implementation Standard
 
 from __future__ import annotations
 
-from lxml import etree
-from decimal import Decimal, ROUND_HALF_UP
-from datetime import datetime, timezone
 import uuid
+from datetime import datetime, timezone
+from decimal import ROUND_HALF_UP, Decimal
+
+from lxml import etree
 
 # UBL 2.1 Namespaces
 NS = {
@@ -130,7 +131,8 @@ def build_invoice_xml(
         seller_address: Seller street address
         seller_city: Seller city
         buyer_name: Buyer name
-        line_items: List of dicts with keys: name, quantity, unit_price, vat_rate (optional), vat_category (optional)
+        line_items: List of dicts with keys: name, quantity,
+            unit_price, vat_rate (optional), vat_category (optional)
         currency: Currency code (default: SAR)
         buyer_vat: Buyer VAT number (required for standard invoices)
         buyer_address: Buyer street address
@@ -149,10 +151,7 @@ def build_invoice_xml(
     root = etree.Element(_qn("", "Invoice"), nsmap=nsmap)
 
     # Profile ID
-    _add_text_element(
-        root, "cbc", "ProfileID",
-        "reporting:1.0"
-    )
+    _add_text_element(root, "cbc", "ProfileID", "reporting:1.0")
 
     # Invoice ID
     _add_text_element(root, "cbc", "ID", invoice_number)
@@ -165,8 +164,10 @@ def build_invoice_xml(
     _add_text_element(root, "cbc", "IssueTime", datetime.now(timezone.utc).strftime("%H:%M:%S"))
 
     # Invoice Type Code with sub-type
-    type_code_elem = _add_text_element(
-        root, "cbc", "InvoiceTypeCode",
+    _add_text_element(
+        root,
+        "cbc",
+        "InvoiceTypeCode",
         INVOICE_TYPE_CODES.get(invoice_type, "388"),
         name=INVOICE_SUBTYPE_CODES.get(invoice_type, "0100000"),
     )
@@ -206,7 +207,8 @@ def build_invoice_xml(
 
     # Seller (AccountingSupplierParty)
     _build_party(
-        root, "AccountingSupplierParty",
+        root,
+        "AccountingSupplierParty",
         name=seller_name,
         vat_number=seller_vat,
         address=seller_address,
@@ -215,7 +217,8 @@ def build_invoice_xml(
 
     # Buyer (AccountingCustomerParty)
     _build_party(
-        root, "AccountingCustomerParty",
+        root,
+        "AccountingCustomerParty",
         name=buyer_name,
         vat_number=buyer_vat,
         address=buyer_address,
@@ -239,15 +242,17 @@ def build_invoice_xml(
         total_taxable += line_amount
         total_vat += line_vat
 
-        processed_items.append({
-            **item,
-            "quantity": qty,
-            "unit_price": price,
-            "vat_rate": vat_rate,
-            "vat_category": vat_category,
-            "line_amount": line_amount,
-            "line_vat": line_vat,
-        })
+        processed_items.append(
+            {
+                **item,
+                "quantity": qty,
+                "unit_price": price,
+                "vat_rate": vat_rate,
+                "vat_category": vat_category,
+                "line_amount": line_amount,
+                "line_vat": line_vat,
+            }
+        )
 
     total_with_vat = _round_decimal(total_taxable + total_vat)
 
@@ -263,44 +268,63 @@ def build_invoice_xml(
     # Tax Total with one TaxSubtotal per rate group
     tax_total = etree.SubElement(root, _qn("cac", "TaxTotal"))
     _add_text_element(
-        tax_total, "cbc", "TaxAmount", str(_round_decimal(total_vat)),
+        tax_total,
+        "cbc",
+        "TaxAmount",
+        str(_round_decimal(total_vat)),
         currencyID=currency,
     )
     for (vat_rate, vat_category), amounts in tax_groups.items():
         subtotal = etree.SubElement(tax_total, _qn("cac", "TaxSubtotal"))
         _add_text_element(
-            subtotal, "cbc", "TaxableAmount",
-            str(_round_decimal(amounts["taxable"])), currencyID=currency,
+            subtotal,
+            "cbc",
+            "TaxableAmount",
+            str(_round_decimal(amounts["taxable"])),
+            currencyID=currency,
         )
         _add_text_element(
-            subtotal, "cbc", "TaxAmount",
-            str(_round_decimal(amounts["tax"])), currencyID=currency,
+            subtotal,
+            "cbc",
+            "TaxAmount",
+            str(_round_decimal(amounts["tax"])),
+            currencyID=currency,
         )
         category = etree.SubElement(subtotal, _qn("cac", "TaxCategory"))
         _add_text_element(category, "cbc", "ID", vat_category)
-        _add_text_element(
-            category, "cbc", "Percent", str(_round_decimal(vat_rate * 100, 0))
-        )
+        _add_text_element(category, "cbc", "Percent", str(_round_decimal(vat_rate * 100, 0)))
         scheme = etree.SubElement(category, _qn("cac", "TaxScheme"))
         _add_text_element(scheme, "cbc", "ID", "VAT")
 
     # Legal Monetary Total
     monetary = etree.SubElement(root, _qn("cac", "LegalMonetaryTotal"))
     _add_text_element(
-        monetary, "cbc", "LineExtensionAmount",
-        str(_round_decimal(total_taxable)), currencyID=currency,
+        monetary,
+        "cbc",
+        "LineExtensionAmount",
+        str(_round_decimal(total_taxable)),
+        currencyID=currency,
     )
     _add_text_element(
-        monetary, "cbc", "TaxExclusiveAmount",
-        str(_round_decimal(total_taxable)), currencyID=currency,
+        monetary,
+        "cbc",
+        "TaxExclusiveAmount",
+        str(_round_decimal(total_taxable)),
+        currencyID=currency,
     )
     _add_text_element(
-        monetary, "cbc", "TaxInclusiveAmount",
-        str(_round_decimal(total_with_vat)), currencyID=currency,
+        monetary,
+        "cbc",
+        "TaxInclusiveAmount",
+        str(_round_decimal(total_with_vat)),
+        currencyID=currency,
     )
     _add_text_element(
-        monetary, "cbc", "PayableAmount",
-        str(_round_decimal(total_with_vat)), currencyID=currency,
+        monetary,
+        "cbc",
+        "PayableAmount",
+        str(_round_decimal(total_with_vat)),
+        currencyID=currency,
     )
 
     # Invoice Lines
@@ -308,22 +332,33 @@ def build_invoice_xml(
         line = etree.SubElement(root, _qn("cac", "InvoiceLine"))
         _add_text_element(line, "cbc", "ID", str(idx))
         _add_text_element(
-            line, "cbc", "InvoicedQuantity",
-            str(item["quantity"]), unitCode="PCE",
+            line,
+            "cbc",
+            "InvoicedQuantity",
+            str(item["quantity"]),
+            unitCode="PCE",
         )
         _add_text_element(
-            line, "cbc", "LineExtensionAmount",
-            str(_round_decimal(item["line_amount"])), currencyID=currency,
+            line,
+            "cbc",
+            "LineExtensionAmount",
+            str(_round_decimal(item["line_amount"])),
+            currencyID=currency,
         )
 
         # Tax for this line
         line_tax = etree.SubElement(line, _qn("cac", "TaxTotal"))
         _add_text_element(
-            line_tax, "cbc", "TaxAmount",
-            str(_round_decimal(item["line_vat"])), currencyID=currency,
+            line_tax,
+            "cbc",
+            "TaxAmount",
+            str(_round_decimal(item["line_vat"])),
+            currencyID=currency,
         )
         _add_text_element(
-            line_tax, "cbc", "RoundingAmount",
+            line_tax,
+            "cbc",
+            "RoundingAmount",
             str(_round_decimal(item["line_amount"] + item["line_vat"])),
             currencyID=currency,
         )
@@ -335,7 +370,9 @@ def build_invoice_xml(
         classified_tax = etree.SubElement(line_item, _qn("cac", "ClassifiedTaxCategory"))
         _add_text_element(classified_tax, "cbc", "ID", item["vat_category"])
         _add_text_element(
-            classified_tax, "cbc", "Percent",
+            classified_tax,
+            "cbc",
+            "Percent",
             str(_round_decimal(item["vat_rate"] * 100, 0)),
         )
         tax_scheme = etree.SubElement(classified_tax, _qn("cac", "TaxScheme"))
@@ -344,8 +381,11 @@ def build_invoice_xml(
         # Price
         price_elem = etree.SubElement(line, _qn("cac", "Price"))
         _add_text_element(
-            price_elem, "cbc", "PriceAmount",
-            str(_round_decimal(item["unit_price"])), currencyID=currency,
+            price_elem,
+            "cbc",
+            "PriceAmount",
+            str(_round_decimal(item["unit_price"])),
+            currencyID=currency,
         )
 
     # Serialize

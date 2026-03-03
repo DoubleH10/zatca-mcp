@@ -1,8 +1,7 @@
 """Tests for invoice validation."""
 
-import pytest
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
@@ -106,9 +105,7 @@ class TestInvoiceValidation:
 
     def test_tampered_line_amounts(self):
         """BR-11: Tampered line extension amount should be caught."""
-        xml = _valid_invoice(
-            line_items=[{"name": "Item", "quantity": 2, "unit_price": 100.00}]
-        )
+        xml = _valid_invoice(line_items=[{"name": "Item", "quantity": 2, "unit_price": 100.00}])
         # Tamper the InvoiceLine's LineExtensionAmount
         xml = xml.replace(
             '<cbc:InvoicedQuantity unitCode="PCE">2</cbc:InvoicedQuantity>\n'

@@ -1,12 +1,13 @@
 """Tests for TLV encoding/decoding."""
 
-import pytest
-import sys
 import os
+import sys
+
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from zatca_mcp.utils.tlv import encode_tlv, decode_tlv, decode_tlv_named, TLVTag
+from zatca_mcp.utils.tlv import TLVTag, decode_tlv, decode_tlv_named, encode_tlv
 
 
 class TestTLVTag:
@@ -94,6 +95,7 @@ class TestEncodeDecode:
 
     def test_decode_truncated_data(self):
         import base64
+
         # Just one byte — truncated
         bad_data = base64.b64encode(b"\x01").decode()
         with pytest.raises(ValueError, match="Truncated"):
@@ -101,6 +103,7 @@ class TestEncodeDecode:
 
     def test_decode_length_exceeds_data(self):
         import base64
+
         # Tag 1, claims 10 bytes, but only 3 provided
         bad_data = base64.b64encode(b"\x01\x0aabc").decode()
         with pytest.raises(ValueError, match="only"):

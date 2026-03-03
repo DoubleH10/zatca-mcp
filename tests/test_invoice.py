@@ -1,8 +1,8 @@
 """Tests for invoice XML generation."""
 
-import pytest
-import sys
 import os
+import sys
+
 from lxml import etree
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
@@ -140,8 +140,7 @@ class TestInvoiceGeneration:
         root = etree.fromstring(xml.encode())
 
         qr_elem = root.xpath(
-            "//cac:AdditionalDocumentReference[cbc:ID='QR']"
-            "//cbc:EmbeddedDocumentBinaryObject",
+            "//cac:AdditionalDocumentReference[cbc:ID='QR']//cbc:EmbeddedDocumentBinaryObject",
             namespaces=NS,
         )
         assert len(qr_elem) == 1
@@ -173,7 +172,13 @@ class TestInvoiceGeneration:
     def test_zero_vat_rate(self):
         xml = _make_invoice(
             line_items=[
-                {"name": "Exempt Item", "quantity": 1, "unit_price": 500.00, "vat_rate": 0, "vat_category": "E"},
+                {
+                    "name": "Exempt Item",
+                    "quantity": 1,
+                    "unit_price": 500.00,
+                    "vat_rate": 0,
+                    "vat_category": "E",
+                },
             ]
         )
         root = etree.fromstring(xml.encode())
@@ -187,8 +192,20 @@ class TestInvoiceGeneration:
     def test_mixed_vat_rates(self):
         xml = _make_invoice(
             line_items=[
-                {"name": "Taxed", "quantity": 1, "unit_price": 1000.00, "vat_rate": 0.15, "vat_category": "S"},
-                {"name": "Exempt", "quantity": 1, "unit_price": 500.00, "vat_rate": 0, "vat_category": "E"},
+                {
+                    "name": "Taxed",
+                    "quantity": 1,
+                    "unit_price": 1000.00,
+                    "vat_rate": 0.15,
+                    "vat_category": "S",
+                },
+                {
+                    "name": "Exempt",
+                    "quantity": 1,
+                    "unit_price": 500.00,
+                    "vat_rate": 0,
+                    "vat_category": "E",
+                },
             ]
         )
         root = etree.fromstring(xml.encode())
