@@ -655,6 +655,339 @@ async def render_invoice_html(invoice_xml: str) -> str:
         return json.dumps({"error": f"HTML rendering failed: {str(e)}"})
 
 
+# ═══════════════════════════════════════════════════
+# RESOURCE 1: Validation Rules
+# ═══════════════════════════════════════════════════
+
+VALIDATION_RULES = [
+    {
+        "id": "BR-01",
+        "name": "Invoice ID",
+        "description": "Invoice ID (cbc:ID) is mandatory",
+        "severity": "error",
+    },
+    {
+        "id": "BR-02",
+        "name": "Issue Date",
+        "description": "Issue Date (cbc:IssueDate) is mandatory and must be YYYY-MM-DD format",
+        "severity": "error",
+    },
+    {
+        "id": "BR-03",
+        "name": "Type Code",
+        "description": "Invoice Type Code (cbc:InvoiceTypeCode) must be 388, 381, or 383",
+        "severity": "error",
+    },
+    {
+        "id": "BR-04",
+        "name": "Currency",
+        "description": "Document Currency Code (cbc:DocumentCurrencyCode) is mandatory",
+        "severity": "error",
+    },
+    {
+        "id": "BR-05",
+        "name": "Seller Name",
+        "description": "Seller RegistrationName is mandatory",
+        "severity": "error",
+    },
+    {
+        "id": "BR-06",
+        "name": "Seller VAT",
+        "description": "Seller VAT must be a 15-digit number starting and ending with 3",
+        "severity": "error",
+    },
+    {
+        "id": "BR-07",
+        "name": "Buyer Name",
+        "description": "Buyer RegistrationName is mandatory",
+        "severity": "error",
+    },
+    {
+        "id": "BR-08",
+        "name": "Buyer VAT (B2B)",
+        "description": "Buyer VAT number is mandatory for standard (B2B) invoices (subtype 01*)",
+        "severity": "error",
+    },
+    {
+        "id": "BR-09",
+        "name": "Reserved",
+        "description": "Reserved for future use",
+        "severity": "warning",
+    },
+    {
+        "id": "BR-10",
+        "name": "Line Items",
+        "description": "Invoice must have at least one line item (cac:InvoiceLine)",
+        "severity": "error",
+    },
+    {
+        "id": "BR-11",
+        "name": "Line Math",
+        "description": "Line extension amount must equal quantity × unit price (±0.01 tolerance)",
+        "severity": "error",
+    },
+    {
+        "id": "BR-12",
+        "name": "Tax Total",
+        "description": "Tax total (cac:TaxTotal/cbc:TaxAmount) is mandatory",
+        "severity": "error",
+    },
+    {
+        "id": "BR-13",
+        "name": "Payable Amount",
+        "description": "Payable amount (cbc:PayableAmount) is mandatory",
+        "severity": "error",
+    },
+    {
+        "id": "BR-14",
+        "name": "Total Cross-Check",
+        "description": (
+            "Tax-exclusive + tax amount must equal tax-inclusive amount (±0.01 tolerance)"
+        ),
+        "severity": "error",
+    },
+    {
+        "id": "BR-15",
+        "name": "Billing Reference",
+        "description": (
+            "Credit/debit notes must reference the original invoice via BillingReference"
+        ),
+        "severity": "error",
+    },
+    {
+        "id": "BR-16",
+        "name": "Instruction Note",
+        "description": "Credit/debit notes should include an InstructionNote explaining the reason",
+        "severity": "warning",
+    },
+]
+
+
+@mcp.resource("zatca://validation-rules")
+def get_validation_rules() -> str:
+    """ZATCA business rules (BR-01 through BR-16) with severity levels.
+
+    Returns all 16 validation rules used by the validate_invoice tool,
+    including rule ID, name, description, and whether violations are
+    errors (blocking) or warnings (non-blocking).
+    """
+    return json.dumps(VALIDATION_RULES, indent=2)
+
+
+# ═══════════════════════════════════════════════════
+# RESOURCE 2: Invoice Types
+# ═══════════════════════════════════════════════════
+
+INVOICE_TYPES = [
+    {
+        "name": "Standard Tax Invoice",
+        "type_code": "388",
+        "subtype": "0100000",
+        "invoice_type_param": "standard",
+        "use_case": "B2B transactions — buyer VAT number required",
+        "vat_categories": ["Standard rate (15%)", "Zero-rated", "Exempt"],
+    },
+    {
+        "name": "Simplified Tax Invoice",
+        "type_code": "388",
+        "subtype": "0200000",
+        "invoice_type_param": "simplified",
+        "use_case": "B2C / point-of-sale transactions — no buyer VAT required",
+        "vat_categories": ["Standard rate (15%)", "Zero-rated", "Exempt"],
+    },
+    {
+        "name": "Standard Credit Note",
+        "type_code": "381",
+        "subtype": "0100000",
+        "invoice_type_param": "credit_note",
+        "use_case": "B2B refunds/returns — requires billing_reference_id to original invoice",
+        "vat_categories": ["Standard rate (15%)", "Zero-rated", "Exempt"],
+    },
+    {
+        "name": "Simplified Credit Note",
+        "type_code": "381",
+        "subtype": "0200000",
+        "invoice_type_param": "credit_note",
+        "use_case": "B2C refunds/returns — requires billing_reference_id to original invoice",
+        "vat_categories": ["Standard rate (15%)", "Zero-rated", "Exempt"],
+    },
+    {
+        "name": "Standard Debit Note",
+        "type_code": "383",
+        "subtype": "0100000",
+        "invoice_type_param": "debit_note",
+        "use_case": "B2B additional charges — requires billing_reference_id to original invoice",
+        "vat_categories": ["Standard rate (15%)", "Zero-rated", "Exempt"],
+    },
+    {
+        "name": "Simplified Debit Note",
+        "type_code": "383",
+        "subtype": "0200000",
+        "invoice_type_param": "debit_note",
+        "use_case": "B2C additional charges — requires billing_reference_id to original invoice",
+        "vat_categories": ["Standard rate (15%)", "Zero-rated", "Exempt"],
+    },
+]
+
+
+@mcp.resource("zatca://invoice-types")
+def get_invoice_types() -> str:
+    """ZATCA invoice types with type codes, subtypes, and usage guidance.
+
+    Returns the 6 supported invoice types: standard, simplified,
+    credit note (standard/simplified), and debit note (standard/simplified).
+    Each includes the UBL type code, ZATCA subtype, applicable VAT categories,
+    and when to use it.
+    """
+    return json.dumps(INVOICE_TYPES, indent=2)
+
+
+# ═══════════════════════════════════════════════════
+# RESOURCE 3: Sample Invoice
+# ═══════════════════════════════════════════════════
+
+
+@mcp.resource("zatca://sample-invoice")
+def get_sample_invoice() -> str:
+    """A complete sample ZATCA-compliant UBL 2.1 XML invoice.
+
+    Returns a realistic simplified (B2C) invoice with two line items,
+    generated via the same build_invoice_xml() function used by the
+    generate_invoice tool. Useful as a reference for XML structure.
+    """
+    return build_invoice_xml(
+        invoice_type="simplified",
+        invoice_number="SAMPLE-2024-001",
+        issue_date="2024-01-15",
+        seller_name="Acme Trading LLC",
+        seller_vat="300000000000003",
+        seller_address="456 King Fahd Road",
+        seller_city="Riyadh",
+        buyer_name="Walk-in Customer",
+        line_items=[
+            {"name": "Consulting Services", "quantity": 10, "unit_price": 500.00, "vat_rate": 0.15},
+            {"name": "Setup Fee", "quantity": 1, "unit_price": 1000.00, "vat_rate": 0.15},
+        ],
+        currency="SAR",
+        note="Sample invoice for reference",
+    )
+
+
+# ═══════════════════════════════════════════════════
+# PROMPT 1: Create Invoice
+# ═══════════════════════════════════════════════════
+
+
+@mcp.prompt()
+def create_invoice() -> list[dict[str, str]]:
+    """Guided workflow for creating a ZATCA-compliant invoice step by step.
+
+    Walks through gathering seller details, buyer details, and line items,
+    then calls generate_invoice to produce the XML.
+    """
+    return [
+        {
+            "role": "system",
+            "content": (
+                "You are a ZATCA e-invoicing assistant. Help the user create a "
+                "ZATCA-compliant invoice by gathering the required information step by step. "
+                "Use the generate_invoice tool to produce the final XML.\n\n"
+                "Required information:\n"
+                "1. Invoice type: standard (B2B) or simplified (B2C)\n"
+                "2. Seller: name, VAT number (15 digits), address, city\n"
+                "3. Buyer: name (and VAT number if B2B)\n"
+                "4. Line items: name, quantity, unit price, VAT rate (default 15%)\n"
+                "5. Invoice number and date\n\n"
+                "Ask for each piece of information conversationally. "
+                "Validate the VAT number format (15 digits, starts and ends with 3) "
+                "before proceeding. When all data is collected, call generate_invoice."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                "I need to create a new ZATCA-compliant invoice. "
+                "Please guide me through the process."
+            ),
+        },
+    ]
+
+
+# ═══════════════════════════════════════════════════
+# PROMPT 2: Validate Invoice
+# ═══════════════════════════════════════════════════
+
+
+@mcp.prompt()
+def validate_existing_invoice(invoice_xml: str) -> list[dict[str, str]]:
+    """Validate a ZATCA invoice XML and explain the results clearly.
+
+    Accepts the invoice XML as an argument, runs validation, and provides
+    a human-friendly explanation of any errors or warnings.
+    """
+    return [
+        {
+            "role": "system",
+            "content": (
+                "You are a ZATCA compliance expert. The user has provided an invoice XML "
+                "to validate. Use the validate_invoice tool to check it against all 16 "
+                "business rules (BR-01 through BR-16).\n\n"
+                "After validation:\n"
+                "- If valid: confirm compliance and highlight any warnings\n"
+                "- If invalid: list each error with its rule ID, explain what's wrong, "
+                "and suggest how to fix it\n"
+                "- Always mention the total number of checks run"
+            ),
+        },
+        {
+            "role": "user",
+            "content": f"Please validate this ZATCA invoice XML:\n\n```xml\n{invoice_xml}\n```",
+        },
+    ]
+
+
+# ═══════════════════════════════════════════════════
+# PROMPT 3: Credit Note
+# ═══════════════════════════════════════════════════
+
+
+@mcp.prompt()
+def credit_note() -> list[dict[str, str]]:
+    """Guided workflow for creating a credit or debit note.
+
+    Walks through gathering the original invoice reference, reason for
+    the note, and items to credit/debit, then calls generate_invoice
+    with the appropriate type and billing reference.
+    """
+    return [
+        {
+            "role": "system",
+            "content": (
+                "You are a ZATCA e-invoicing assistant helping create a credit or debit note. "
+                "Credit notes (type code 381) are for refunds/returns. "
+                "Debit notes (type code 383) are for additional charges.\n\n"
+                "Gather the following step by step:\n"
+                "1. Credit note or debit note?\n"
+                "2. Original invoice ID (billing_reference_id) and date\n"
+                "3. Reason for the note (instruction_note)\n"
+                "4. Seller details: name, VAT number, address, city\n"
+                "5. Buyer details: name (and VAT if B2B)\n"
+                "6. Line items to credit/debit: name, quantity, unit price\n\n"
+                "When all data is collected, call generate_invoice with "
+                "invoice_type='credit_note' or 'debit_note', including the "
+                "billing_reference_id, billing_reference_date, and instruction_note."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                "I need to create a credit or debit note for an existing invoice. "
+                "Please guide me through the process."
+            ),
+        },
+    ]
+
+
 def main():
     """Entry point for the ZATCA MCP server."""
     mcp.run()

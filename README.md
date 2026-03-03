@@ -7,7 +7,7 @@
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-c8e64a?logo=python&logoColor=white)](https://python.org)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-c8e64a)](LICENSE)
 [![CI](https://img.shields.io/badge/CI-GitHub_Actions-c8e64a?logo=githubactions&logoColor=white)](.github/workflows/test.yml)
-[![Tests: 100 passing](https://img.shields.io/badge/Tests-100_passing-c8e64a)]()
+[![Tests: 127 passing](https://img.shields.io/badge/Tests-127_passing-c8e64a)]()
 [![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-c8e64a)](https://modelcontextprotocol.io)
 [![ZATCA Phase 1 + 2](https://img.shields.io/badge/ZATCA-Phase_1_+_2_✓-c8e64a)]()
 
@@ -30,7 +30,9 @@ Saudi Arabia's ZATCA mandate requires **all businesses** to issue structured ele
 
 ## Features
 
-- **8 MCP Tools** — generate, sign, validate, submit invoices + QR codes, CSR, compliance checks
+- **9 MCP Tools** — generate, sign, validate, submit invoices + QR codes, CSR, compliance checks, HTML render
+- **3 MCP Resources** — validation rules, invoice types, sample invoice for AI reference
+- **3 MCP Prompts** — guided workflows for creating invoices, validating, and credit/debit notes
 - **UBL 2.1 XML** — full namespace-compliant invoice generation per OASIS standard
 - **16-Rule Validation Engine** — BR-01 through BR-16 business rule checks
 - **XAdES-BES Digital Signing** — ECDSA secp256k1 signatures with certificate embedding
@@ -38,7 +40,7 @@ Saudi Arabia's ZATCA mandate requires **all businesses** to issue structured ele
 - **Credit/Debit Notes** — type codes 381/383 with BillingReference and InstructionNote
 - **TLV QR Encoding** — Phase 1 + Phase 2 tag support (tags 1-8, cryptographic data)
 - **Fikra CLI** — Claude Code-style conversational agent with HTML invoice output
-- **100 Tests** — unit, integration, signing, API client, and edge-case coverage
+- **127 Tests** — unit, integration, signing, API client, resources/prompts, and edge-case coverage
 - **CI/CD Pipeline** — ruff + mypy + pytest across Python 3.10/3.11/3.12 + Phase 2 job
 - **Arabic Support** — full UTF-8 handling for seller/buyer names and addresses
 - **Decimal Precision** — `Decimal` with `ROUND_HALF_UP` for all financial math
@@ -433,7 +435,7 @@ csr_pem = generate_csr(
 
 ## Engineering Quality
 
-- **100 tests** across 6 test modules (TLV, validation, invoice, signing, credit/debit, API client)
+- **127 tests** across 7 test modules (TLV, validation, invoice, signing, credit/debit, API client, resources/prompts)
 - **CI/CD** — GitHub Actions: ruff lint + format check, mypy type checking, pytest with coverage across Python 3.10 / 3.11 / 3.12, plus a dedicated Phase 2 job
 - **Decimal precision** — all financial calculations use `Decimal` with `ROUND_HALF_UP`, never floating point
 - **UBL 2.1 compliance** — full OASIS namespace declarations (`ubl`, `cac`, `cbc`, `ext`, `ds`, `xades`)
@@ -445,7 +447,7 @@ csr_pem = generate_csr(
 ```
 zatca-mcp/
 ├── src/zatca_mcp/
-│   ├── server.py              # MCP server — 8 tool definitions
+│   ├── server.py              # MCP server — 9 tools, 3 resources, 3 prompts
 │   ├── cli.py                 # Fikra CLI — global `fikra` command
 │   ├── utils/
 │   │   ├── xml_builder.py     # UBL 2.1 XML invoice generator
@@ -462,6 +464,7 @@ zatca-mcp/
 │   ├── test_invoice.py        # Invoice generation tests
 │   ├── test_tlv.py            # TLV encoding/decoding tests
 │   ├── test_validation.py     # Validation engine tests
+│   ├── test_resources_prompts.py # MCP resources & prompts tests
 │   ├── test_signing.py        # Digital signing tests (Phase 2)
 │   ├── test_credit_debit.py   # Credit/debit note tests (Phase 2)
 │   └── test_api_client.py     # API client tests (Phase 2)
@@ -508,7 +511,7 @@ mcp dev src/zatca_mcp/server.py
 - [x] Certificate management (CSR generation)
 - [x] Credit/debit note support (381/383)
 - [ ] PyPI package publishing
-- [ ] MCP Resources & Prompts
+- [x] MCP Resources & Prompts
 - [ ] HTTP/SSE transport
 - [ ] Arabic RTL invoice template
 
