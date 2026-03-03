@@ -13,8 +13,10 @@
 
 </div>
 
-<!-- screenshot: add asciinema/VHS terminal recording here -->
-<!-- <p align="center"><img src="docs/demo.gif" width="700" alt="Fikra CLI demo"></p> -->
+<!-- TODO: Record a 30-second demo GIF of Claude Desktop generating a ZATCA invoice via natural language -->
+<!-- <p align="center"><img src="docs/demo.gif" width="700" alt="Generate a ZATCA-compliant invoice from natural language"></p> -->
+
+<p align="center"><em>"Generate an invoice for 10 hours of consulting at 500 SAR to Al-Rajhi Corp"</em> &rarr; compliant XML + QR code in seconds</p>
 
 ---
 
@@ -510,10 +512,17 @@ mcp dev src/zatca_mcp/server.py
 - [ ] HTTP/SSE transport
 - [ ] Arabic RTL invoice template
 
-## Built by Fikrah
+## Built with zatca-mcp
 
-[Fikrah](https://fikrah.ai) is building an agentic AI workforce for financial operations.
-This MCP server is the foundation for our Saudi e-invoicing capabilities.
+| Project | Description |
+|---------|-------------|
+| [Fikrah](https://fikrah.ai) | Agentic AI workforce for financial operations — uses this server as its ZATCA compliance backbone |
+
+> Using zatca-mcp in your project? Open a PR to add it here.
+
+## Contributing
+
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions. Check the [good first issues](https://github.com/DoubleH10/zatca-mcp/labels/good%20first%20issue) for a place to start.
 
 ## License
 
